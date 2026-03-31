@@ -1,0 +1,55 @@
+@import "tailwindcss";
+
+@theme {
+  /* Stitch design system colors */
+  --color-background: #060e20;
+  --color-surface: #060e20;
+  --color-surface-container: #0f1930;
+  --color-surface-container-low: #091328;
+  --color-surface-container-high: #141f38;
+  --color-surface-container-highest: #192540;
+
+  --color-primary: #53ddfc;
+  --color-primary-dim: #40ceed;
+  --color-primary-container: #21bedc;
+  --color-on-primary: #004b58;
+
+  --color-error: #ff716c;
+  --color-error-dim: #d7383b;
+  --color-on-error: #490006;
+
+  --color-on-background: #dee5ff;
+  --color-on-surface: #dee5ff;
+  --color-on-surface-variant: #a3aac4;
+  --color-outline: #6d758c;
+  --color-outline-variant: #40485d;
+
+  --color-success: #22c55e;
+  --color-warning: #eab308;
+
+  /* Fonts */
+  --font-headline: "Space Grotesk", sans-serif;
+  --font-body: "Inter", sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+}
+
+/* Global styles */
+body {
+  margin: 0;
+  background: var(--color-background);
+  color: var(--color-on-background);
+  font-family: var(--font-body);
+  overflow: hidden;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: #060e20; }
+::-webkit-scrollbar-thumb { background: #192540; }
+::-webkit-scrollbar-thumb:hover { background: #53ddfc; }
+
+/* Grid pattern for canvas area */
+.grid-pattern {
+  background-image: radial-gradient(circle, #192540 1px, transparent 1px);
+  background-size: 40px 40px;
+}

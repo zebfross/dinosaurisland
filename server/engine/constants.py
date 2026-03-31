@@ -1,0 +1,35 @@
+"""All game constants in one place."""
+
+# Map defaults
+DEFAULT_GRID_WIDTH = 50
+DEFAULT_GRID_HEIGHT = 50
+
+# Species
+MAX_DINOS_PER_SPECIES = 5
+MAX_SPECIES_TURNS = 120
+
+# Dinosaur lifecycle
+DINO_MIN_LIFESPAN = 24
+DINO_MAX_LIFESPAN = 36
+STARTING_DIMENSION = 1
+MAX_DIMENSION = 5
+ENERGY_PER_DIMENSION = 1000
+STARTING_ENERGY = 750
+
+# Actions
+GROW_ENERGY_FRACTION = 0.5  # costs half of new max energy
+EGG_ENERGY_THRESHOLD = 1500
+MOVE_BASE_COST = 10  # cost = MOVE_BASE_COST * 2^steps
+HERBIVORE_MAX_STEPS = 2
+CARNIVORE_MAX_STEPS = 3
+
+# Combat
+CARNIVORE_COMBAT_MULTIPLIER = 2
+COMBAT_ENERGY_ABSORPTION = 0.75
+
+# Feeding / map regeneration
+VEG_REGEN_FRACTION = 1 / 20  # per turn
+CARRION_DECAY_FRACTION = 1 / 30  # per turn
+
+# Vision ranges by dimension
+VISION_RANGE = {1: 2, 2: 3, 3: 3, 4: 4, 5: 4}

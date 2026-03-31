@@ -1,0 +1,20 @@
+{
+  "name": "dinosaurisland",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently -n server,client -c cyan,green \"npm run dev:server\" \"npm run dev:client\"",
+    "dev:server": "cd . && .venv/bin/python -m server serve",
+    "dev:client": "sleep 2 && cd client && npx vite --open",
+    "match": ".venv/bin/python examples/run_match.py",
+    "cli": ".venv/bin/python -m server cli",
+    "test": ".venv/bin/python -m pytest tests/ -v",
+    "test:quick": ".venv/bin/python -m pytest tests/ -q",
+    "build": "cd client && npm run build",
+    "start": ".venv/bin/python -m server serve",
+    "deploy": "./scripts/deploy.sh",
+    "setup": "python3 -m venv .venv && .venv/bin/pip install -e '.[dev,server]' && cd client && npm install"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}
