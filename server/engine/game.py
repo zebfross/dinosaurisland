@@ -340,6 +340,11 @@ class GameEngine:
                 )
                 result.combats.append(combat_result)
                 result.deaths.append(combat_result.loser_id)
+                # Loser leaves carrion (unless winner already ate most of it)
+                loser = attacker if combat_result.loser_id == attacker.id else defender
+                leftover = loser.dimension * 200 - combat_result.energy_transferred
+                if leftover > 50:
+                    self._spawn_carrion(state, loser.x, loser.y, leftover)
             except IllegalCombatError:
                 pass  # shouldn't happen if validation is correct
 
@@ -368,6 +373,7 @@ class GameEngine:
         cost = movement_cost(steps)
         if dino.energy < cost:
             dino.alive = False  # dies of starvation trying to move
+            self._spawn_carrion(state, dino.x, dino.y, dino.dimension * 200)
             return
 
         dino.energy -= cost
@@ -413,6 +419,15 @@ class GameEngine:
         )
         species.eggs.append(egg)
 
+    def _spawn_carrion(self, state: GameState, x: int, y: int, energy: float) -> None:
+        """Convert a cell to carrion at a dino's death location."""
+        cell = state.game_map.get_cell(x, y)
+        if cell.cell_type == CellType.WATER:
+            return  # can't place carrion on water
+        cell.cell_type = CellType.CARRION
+        cell.energy = min(cell.energy + energy, max(cell.max_energy, energy))
+        cell.max_energy = max(cell.max_energy, energy)
+
     def _auto_feed(self, state: GameState) -> None:
         """All alive dinos auto-eat from their current cell."""
         for species in state.species.values():
@@ -428,6 +443,8 @@ class GameEngine:
                 if dino.age >= dino.max_lifespan:
                     dino.alive = False
                     result.deaths.append(dino.id)
+                    # Leave carrion behind (energy scales with dimension)
+                    self._spawn_carrion(state, dino.x, dino.y, dino.dimension * 200)
 
     def _check_end_game(self, state: GameState) -> None:
         """End game if max turns reached or all species have no living dinos/eggs."""
