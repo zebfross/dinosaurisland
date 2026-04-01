@@ -166,7 +166,9 @@ export function LobbyView() {
 
 function HowToConnectModal({ onClose, games }: { onClose: () => void; games: GameSummary[] }) {
   const persistent = games.find(g => g.persistent);
-  const serverUrl = window.location.origin + (import.meta.env.BASE_URL || '/').replace(/\/$/, '');
+  // Use the API base URL (correct in both dev and production)
+  const apiBase = import.meta.env.VITE_API_URL || '';
+  const serverUrl = apiBase || (window.location.origin + (import.meta.env.BASE_URL || '/').replace(/\/$/, ''));
   const downloadUrl = 'https://raw.githubusercontent.com/zebfross/dinosaurisland/main/examples/quickstart_bot.py';
 
   return (
