@@ -420,10 +420,6 @@ export class CanvasRenderer {
       }
     }
 
-    // Subtle grid line
-    ctx.strokeStyle = 'rgba(255,255,255,0.03)';
-    ctx.lineWidth = 0.5;
-    ctx.strokeRect(sx, sy, ts, ts);
   }
 
   private _drawShore(
