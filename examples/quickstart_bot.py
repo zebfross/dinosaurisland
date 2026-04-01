@@ -92,16 +92,18 @@ def herbivore_action(api, game_id, state, dino, legal, rng):
         flee = max(moves, key=lambda m: dist(m["target_x"], m["target_y"], threat["x"], threat["y"]))
         return flee
 
-    # Lay egg — more urgent when aging
+    # Lay egg — but only if we can survive afterward
+    # Egg costs 800 energy; keep at least 200 buffer to not starve
     my_dinos = [d for d in state["dinosaurs"] if d["is_mine"]]
     age_pct = dino["age"] / dino["max_lifespan"] if dino["max_lifespan"] > 0 else 0
-    egg_threshold = 0.8 if age_pct < 0.5 else 0.5
-    if energy_pct > egg_threshold and len(my_dinos) < 4:
+    can_afford_egg = dino["energy"] > 1000  # 800 cost + 200 buffer
+    urgent_egg = age_pct > 0.7 and dino["energy"] > 800  # old = take the risk
+    if (can_afford_egg or urgent_egg) and len(my_dinos) < 4:
         if any(a["action_type"] == "lay_egg" for a in legal):
             return {"dino_id": dino["id"], "action_type": "lay_egg"}
 
-    # Grow if young enough to benefit
-    if energy_pct > 0.65 and dino["dimension"] < 3 and age_pct < 0.6:
+    # Grow if young and can afford it (growth costs half of new max energy)
+    if energy_pct > 0.7 and dino["dimension"] < 3 and age_pct < 0.5:
         if any(a["action_type"] == "grow" for a in legal):
             return {"dino_id": dino["id"], "action_type": "grow"}
 
@@ -177,16 +179,16 @@ def carnivore_action(api, game_id, state, dino, legal, rng):
         if move:
             return move
 
-    # Lay egg FIRST — survival of the species is priority
-    # More urgent as dino ages (might die before getting another chance)
+    # Lay egg — but keep enough energy to survive
     age_pct = dino["age"] / dino["max_lifespan"] if dino["max_lifespan"] > 0 else 0
-    egg_threshold = 0.85 if age_pct < 0.5 else 0.5  # desperate when old
-    if energy_pct > egg_threshold and len(my_dinos) < 4:
+    can_afford_egg = dino["energy"] > 1000
+    urgent_egg = age_pct > 0.7 and dino["energy"] > 800
+    if (can_afford_egg or urgent_egg) and len(my_dinos) < 4:
         if any(a["action_type"] == "lay_egg" for a in legal):
             return {"dino_id": dino["id"], "action_type": "lay_egg"}
 
-    # Grow — but only if young enough to benefit
-    if energy_pct > 0.6 and dino["dimension"] < 3 and age_pct < 0.6:
+    # Grow — but only if young and can afford it
+    if energy_pct > 0.7 and dino["dimension"] < 3 and age_pct < 0.5:
         if any(a["action_type"] == "grow" for a in legal):
             return {"dino_id": dino["id"], "action_type": "grow"}
 
