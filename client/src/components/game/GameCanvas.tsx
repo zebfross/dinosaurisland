@@ -10,60 +10,9 @@ export function GameCanvas() {
   const animFrameRef = useRef<number>(0);
   const centeredRef = useRef(false);
 
-  // Use refs for render data so the render loop never restarts
-  const renderDataRef = useRef({
-    visibleCells: [] as any[],
-    dinosaurs: [] as any[],
-    eggs: [] as any[],
-    selectedDinoId: null as string | null,
-    mapWidth: 50,
-    mapHeight: 50,
-  });
-
-  // Subscribe to store changes via refs (no re-renders, no effect restarts)
-  useEffect(() => {
-    const unsub = useGameStore.subscribe((state) => {
-      // Update map size
-      let maxX = 0, maxY = 0;
-      for (const cell of state.visibleCells) {
-        if (cell.x > maxX) maxX = cell.x;
-        if (cell.y > maxY) maxY = cell.y;
-      }
-      const mapW = maxX > 0 ? maxX + 1 : renderDataRef.current.mapWidth;
-      const mapH = maxY > 0 ? maxY + 1 : renderDataRef.current.mapHeight;
-
-      renderDataRef.current = {
-        visibleCells: state.visibleCells,
-        dinosaurs: state.dinosaurs,
-        eggs: state.eggs,
-        selectedDinoId: state.selectedDinoId,
-        mapWidth: mapW,
-        mapHeight: mapH,
-      };
-
-      // Center camera once
-      const renderer = rendererRef.current;
-      const canvas = canvasRef.current;
-      if (renderer && canvas && !centeredRef.current && mapW > 1 && mapH > 1) {
-        renderer.centerOn(mapW / 2, mapH / 2, canvas.width, canvas.height);
-        centeredRef.current = true;
-      }
-    });
-    return unsub;
-  }, []);
-
-  // Also read the click handler's dinos from a ref
-  const dinosaursRef = useRef<any[]>([]);
-  useEffect(() => {
-    const unsub = useGameStore.subscribe((state) => {
-      dinosaursRef.current = state.dinosaurs;
-    });
-    return unsub;
-  }, []);
-
   const selectDino = useGameStore((s) => s.selectDino);
 
-  // Initialize renderer + render loop (runs once, never restarts)
+  // Initialize renderer + render loop
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -75,11 +24,11 @@ export function GameCanvas() {
     rendererRef.current = renderer;
 
     renderer.onCellClick = (x, y) => {
-      const clicked = dinosaursRef.current.find(d => d.x === x && d.y === y);
+      const dinos = useGameStore.getState().dinosaurs;
+      const clicked = dinos.find(d => d.x === x && d.y === y);
       selectDino(clicked ? clicked.id : null);
     };
 
-    // Mouse/wheel handlers
     const onMouseDown = (e: MouseEvent) => renderer.handleMouseDown(e);
     const onMouseMove = (e: MouseEvent) => renderer.handleMouseMove(e);
     const onMouseUp = (e: MouseEvent) => renderer.handleMouseUp(e);
@@ -90,9 +39,33 @@ export function GameCanvas() {
     canvas.addEventListener('mouseup', onMouseUp);
     canvas.addEventListener('wheel', onWheel, { passive: false });
 
-    // Single render loop — reads from ref, never restarts
+    // Render loop — reads directly from store each frame
     const render = () => {
-      renderer.render(renderDataRef.current);
+      const state = useGameStore.getState();
+
+      let maxX = 0, maxY = 0;
+      for (const cell of state.visibleCells) {
+        if (cell.x > maxX) maxX = cell.x;
+        if (cell.y > maxY) maxY = cell.y;
+      }
+      const mapW = maxX > 0 ? maxX + 1 : 50;
+      const mapH = maxY > 0 ? maxY + 1 : 50;
+
+      // Center camera once we have both data and canvas size
+      if (!centeredRef.current && state.visibleCells.length > 0 && canvas.width > 100) {
+        renderer.centerOn(mapW / 2, mapH / 2, canvas.width, canvas.height);
+        centeredRef.current = true;
+      }
+
+      renderer.render({
+        visibleCells: state.visibleCells,
+        dinosaurs: state.dinosaurs,
+        eggs: state.eggs,
+        selectedDinoId: state.selectedDinoId,
+        mapWidth: mapW,
+        mapHeight: mapH,
+      });
+
       animFrameRef.current = requestAnimationFrame(render);
     };
     animFrameRef.current = requestAnimationFrame(render);
@@ -106,29 +79,41 @@ export function GameCanvas() {
     };
   }, []);
 
-  // Resize canvas
+  // Resize canvas to match container
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
+    const container = canvas.parentElement;
+    if (!container) return;
+
     const resize = () => {
-      const parent = canvas.parentElement;
-      if (parent) {
-        canvas.width = parent.clientWidth;
-        canvas.height = parent.clientHeight;
+      const w = container.clientWidth;
+      const h = container.clientHeight;
+      if (w > 0 && h > 0) {
+        canvas.width = w;
+        canvas.height = h;
       }
     };
-    resize();
+
+    // Use ResizeObserver for layout changes + window resize as fallback
+    const observer = new ResizeObserver(resize);
+    observer.observe(container);
     window.addEventListener('resize', resize);
-    return () => window.removeEventListener('resize', resize);
+    // Also retry after a short delay for flex layout settling
+    setTimeout(resize, 100);
+    setTimeout(resize, 500);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', resize);
+    };
   }, []);
 
   return (
-    <div style={{ flex: 1, position: 'relative', overflow: 'hidden', background: '#0a0a0a' }}>
-      <canvas
-        ref={canvasRef}
-        style={{ display: 'block', width: '100%', height: '100%', cursor: 'grab' }}
-      />
-    </div>
+    <canvas
+      ref={canvasRef}
+      style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', cursor: 'grab' }}
+    />
   );
 }

@@ -134,7 +134,7 @@ export function GameView() {
       {/* Left: Canvas area */}
       <section className="w-3/4 flex flex-col relative border-r border-outline-variant/20">
         <TurnIndicator />
-        <div className="flex-grow relative grid-pattern">
+        <div className="flex-grow relative grid-pattern min-h-0">
           <GameCanvas />
 
           {/* Status badge */}
