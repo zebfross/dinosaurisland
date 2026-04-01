@@ -73,18 +73,21 @@ def _validate_move(
             dino.id, action, f"Target not reachable within {max_steps} steps"
         )
 
-    # Check for herbivore-on-herbivore collision
+    # Check for invalid collisions
     occupant = state.get_dino_at(tx, ty)
     if occupant and occupant.id != dino.id:
         occupant_species = state.get_species_for_dino(occupant.id)
-        if (
-            occupant_species
-            and species.diet == DietType.HERBIVORE
-            and occupant_species.diet == DietType.HERBIVORE
-        ):
-            raise InvalidActionError(
-                dino.id, action, "Herbivores cannot move onto another herbivore"
-            )
+        if occupant_species:
+            # Can't attack your own species
+            if occupant_species.id == species.id:
+                raise InvalidActionError(
+                    dino.id, action, "Cannot move onto your own species"
+                )
+            # Herbivores can't attack other herbivores
+            if species.diet == DietType.HERBIVORE and occupant_species.diet == DietType.HERBIVORE:
+                raise InvalidActionError(
+                    dino.id, action, "Herbivores cannot move onto another herbivore"
+                )
 
 
 def _validate_grow(dino: Dinosaur, action: Action) -> None:

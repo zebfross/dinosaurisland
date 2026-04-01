@@ -66,10 +66,21 @@ class TestMoveValidation:
         with pytest.raises(InvalidActionError, match="target coordinates"):
             validate_action(state, sp, d, action)
 
-    def test_herbivore_onto_herbivore(self):
+    def test_onto_own_species(self):
         state, sp, d = _setup_game()
         d2 = Dinosaur(species_id=sp.id, x=6, y=5, max_lifespan=30)
         sp.dinosaurs.append(d2)
+        action = Action(dino_id=d.id, action_type=ActionType.MOVE, target_x=6, target_y=5)
+        with pytest.raises(InvalidActionError, match="own species"):
+            validate_action(state, sp, d, action)
+
+    def test_herbivore_onto_other_herbivore(self):
+        state, sp, d = _setup_game()
+        # Create a second herbivore species
+        sp2 = Species(player_id="p2", name="OtherHerbs", diet=DietType.HERBIVORE)
+        d2 = Dinosaur(species_id=sp2.id, x=6, y=5, max_lifespan=30)
+        sp2.dinosaurs.append(d2)
+        state.species[sp2.id] = sp2
         action = Action(dino_id=d.id, action_type=ActionType.MOVE, target_x=6, target_y=5)
         with pytest.raises(InvalidActionError, match="Herbivores cannot"):
             validate_action(state, sp, d, action)
