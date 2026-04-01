@@ -9,7 +9,7 @@ def main():
     if mode == "serve":
         import uvicorn
         host = "0.0.0.0"
-        port = 8000
+        port = 8800
         # Check for --port flag
         for i, arg in enumerate(sys.argv):
             if arg == "--port" and i + 1 < len(sys.argv):
