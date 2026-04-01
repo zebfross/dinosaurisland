@@ -166,13 +166,17 @@ export function GameView() {
 
       {/* Right: Sidebar */}
       <aside className="w-1/4 bg-surface-container h-full flex flex-col border-l border-outline-variant/20 font-mono">
-        <div className="flex-grow flex flex-col gap-4 overflow-y-auto">
-          <SpeciesPanel />
-          {isReplayMode && replay ? (
-            <ReplayEventLog frames={replay.frames} currentFrame={replayFrame} />
-          ) : (
-            <EventLog />
-          )}
+        <div className="flex flex-col h-full">
+          <div className="overflow-y-auto" style={{ height: '60%' }}>
+            <SpeciesPanel />
+          </div>
+          <div className="flex-grow min-h-0 overflow-hidden border-t border-outline-variant/10">
+            {isReplayMode && replay ? (
+              <ReplayEventLog frames={replay.frames} currentFrame={replayFrame} />
+            ) : (
+              <EventLog />
+            )}
+          </div>
         </div>
 
         <div className="p-4 bg-surface-container-low border-t border-outline-variant/20">
