@@ -323,7 +323,7 @@ class GameEngine:
                     continue
 
                 if action.action_type == ActionType.MOVE:
-                    self._execute_move(state, species, dino, action, combats_to_resolve)
+                    self._execute_move(state, species, dino, action, combats_to_resolve, result)
                 elif action.action_type == ActionType.GROW:
                     self._execute_grow(dino)
                 elif action.action_type == ActionType.LAY_EGG:
@@ -340,6 +340,7 @@ class GameEngine:
                 )
                 result.combats.append(combat_result)
                 result.deaths.append(combat_result.loser_id)
+                result.death_causes[combat_result.loser_id] = "combat"
                 # Loser leaves carrion (unless winner already ate most of it)
                 loser = attacker if combat_result.loser_id == attacker.id else defender
                 leftover = loser.dimension * 200 - combat_result.energy_transferred
@@ -355,6 +356,7 @@ class GameEngine:
         dino: Dinosaur,
         action: Action,
         combats: list[tuple[Dinosaur, Species, Dinosaur, Species]],
+        result: TurnResult | None = None,
     ) -> None:
         tx, ty = action.target_x, action.target_y
         assert tx is not None and ty is not None
@@ -372,8 +374,11 @@ class GameEngine:
 
         cost = movement_cost(steps)
         if dino.energy < cost:
-            dino.alive = False  # dies of starvation trying to move
+            dino.alive = False
             self._spawn_carrion(state, dino.x, dino.y, dino.dimension * 200)
+            if result:
+                result.deaths.append(dino.id)
+                result.death_causes[dino.id] = "starvation"
             return
 
         dino.energy -= cost
@@ -443,7 +448,7 @@ class GameEngine:
                 if dino.age >= dino.max_lifespan:
                     dino.alive = False
                     result.deaths.append(dino.id)
-                    # Leave carrion behind (energy scales with dimension)
+                    result.death_causes[dino.id] = "old age"
                     self._spawn_carrion(state, dino.x, dino.y, dino.dimension * 200)
 
     def _check_end_game(self, state: GameState) -> None:

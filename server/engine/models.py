@@ -141,6 +141,7 @@ class TurnResult(BaseModel):
     turn_number: int
     combats: list[CombatResult] = Field(default_factory=list)
     deaths: list[str] = Field(default_factory=list)
+    death_causes: dict[str, str] = Field(default_factory=dict)  # dino_id -> cause
     hatches: list[str] = Field(default_factory=list)
     score_deltas: dict[str, int] = Field(default_factory=dict)
 

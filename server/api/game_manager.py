@@ -594,15 +594,15 @@ class GameManager:
                 continue  # already covered by combat event
             sp = session.state.get_species_for_dino(dino_id)
             if not sp:
-                # Dino might be dead already, search all species
                 for s in session.state.species.values():
                     for d in s.dinosaurs:
                         if d.id == dino_id:
                             sp = s
                             break
             name = sp.name if sp else "Unknown"
+            cause = result.death_causes.get(dino_id, "unknown causes")
             events.append(GameEvent(kind="death", species_name=name,
-                                    detail=f"{name} dino died"))
+                                    detail=f"{name} dino died ({cause})"))
 
         return events
 
