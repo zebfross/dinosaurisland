@@ -92,18 +92,19 @@ export function GameView() {
         case 'state_update': applyState(msg.state); break;
         case 'turn_start': setDeadline(msg.deadline_seconds); break;
         case 'turn_result': {
-          // Score deltas
-          const parts: string[] = [];
-          for (const s of msg.scores) {
-            const prev = prevScores.get(s.species_id) ?? 0;
-            const delta = s.score - prev;
-            if (delta > 0) parts.push(`${s.name} +${delta}`);
-            prevScores.set(s.species_id, s.score);
-          }
-          if (parts.length > 0) addEvent(`T${msg.turn}: ${parts.join(', ')}`);
+          // Only show major events — not routine score ticks
           if (msg.hatches > 0) addEvent(`T${msg.turn}: ${msg.hatches} egg(s) hatched`);
           if (msg.combats > 0) addEvent(`T${msg.turn}: ${msg.combats} combat(s)`);
           if (msg.deaths > 0) addEvent(`T${msg.turn}: ${msg.deaths} death(s)`);
+          // Show score on major events or every 25 turns as a checkpoint
+          if (msg.combats > 0 || msg.deaths > 0 || msg.hatches > 0 || msg.turn % 25 === 0) {
+            const scoreboard = msg.scores
+              .filter(s => s.score > 0)
+              .sort((a, b) => b.score - a.score)
+              .map(s => `${s.name}: ${s.score}`)
+              .join(', ');
+            if (scoreboard) addEvent(`T${msg.turn} scores: ${scoreboard}`);
+          }
           updateScores(msg.scores);
           break;
         }

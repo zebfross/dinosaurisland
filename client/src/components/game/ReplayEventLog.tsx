@@ -18,20 +18,21 @@ export function ReplayEventLog({ frames, currentFrame }: ReplayEventLogProps) {
   const events: { turn: number; text: string; cls: string }[] = [];
   for (let i = 0; i <= currentFrame && i < frames.length; i++) {
     const f = frames[i];
-    const prev = i > 0 ? frames[i - 1] : null;
+    const hasMajorEvent = f.hatches > 0 || f.combats > 0 || f.deaths > 0;
 
-    if (prev) {
-      const prevScores = new Map(prev.scores.map(s => [s.species_id, s.score]));
-      for (const s of f.scores) {
-        const delta = s.score - (prevScores.get(s.species_id) ?? 0);
-        if (delta > 0) {
-          events.push({ turn: f.turn, text: `${s.name} +${delta} pts`, cls: 'text-on-surface-variant' });
-        }
-      }
-    }
     if (f.hatches > 0) events.push({ turn: f.turn, text: `${f.hatches} egg(s) hatched`, cls: 'text-success' });
     if (f.combats > 0) events.push({ turn: f.turn, text: `${f.combats} combat(s)`, cls: 'text-warning' });
     if (f.deaths > 0) events.push({ turn: f.turn, text: `${f.deaths} death(s)`, cls: 'text-error' });
+
+    // Show scoreboard on major events or every 25 turns
+    if (hasMajorEvent || f.turn % 25 === 0) {
+      const scoreboard = f.scores
+        .filter(s => s.score > 0)
+        .sort((a, b) => b.score - a.score)
+        .map(s => `${s.name}: ${s.score}`)
+        .join(', ');
+      if (scoreboard) events.push({ turn: f.turn, text: `Scores: ${scoreboard}`, cls: 'text-on-surface-variant/60' });
+    }
   }
 
   const current = frames[currentFrame];
