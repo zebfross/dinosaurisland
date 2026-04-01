@@ -142,7 +142,38 @@ def carnivore_action(api, game_id, state, dino, legal, rng):
     enemies = find_enemy_dinos(state)
     my_dinos = [d for d in state["dinosaurs"] if d["is_mine"]]
 
-    # Grow first — bigger = stronger in combat
+    # PRIORITY: if energy is low, find food or rest — don't waste energy exploring
+    if energy_pct < 0.3:
+        # On carrion? Stay and eat
+        on_carrion = any(c["x"] == dino["x"] and c["y"] == dino["y"]
+                         and c["cell_type"] == "carrion" and c["energy"] > 0
+                         for c in state["visible_cells"])
+        if on_carrion:
+            return {"dino_id": dino["id"], "action_type": "rest"}
+
+        # Nearby carrion? Move toward it (1 step only to conserve energy)
+        carrion = find_food_cells(state, "carrion")
+        if carrion and moves:
+            nearby = [f for f in carrion if dist(dino["x"], dino["y"], f[0], f[1]) <= 3]
+            if nearby:
+                best = max(nearby, key=lambda f: f[2])
+                short_moves = [m for m in moves
+                               if dist(dino["x"], dino["y"], m["target_x"], m["target_y"]) == 1]
+                move = best_move_toward(short_moves or moves, best[0], best[1])
+                if move:
+                    return move
+
+        # Nothing nearby — rest to avoid starvation from movement
+        return {"dino_id": dino["id"], "action_type": "rest"}
+
+    # On carrion? Stay and eat until full
+    on_carrion = any(c["x"] == dino["x"] and c["y"] == dino["y"]
+                     and c["cell_type"] == "carrion" and c["energy"] > 0
+                     for c in state["visible_cells"])
+    if on_carrion and energy_pct < 0.9:
+        return {"dino_id": dino["id"], "action_type": "rest"}
+
+    # Grow — bigger = stronger in combat
     if energy_pct > 0.6 and dino["dimension"] < 4:
         if any(a["action_type"] == "grow" for a in legal):
             return {"dino_id": dino["id"], "action_type": "grow"}
@@ -152,33 +183,26 @@ def carnivore_action(api, game_id, state, dino, legal, rng):
         if any(a["action_type"] == "lay_egg" for a in legal):
             return {"dino_id": dino["id"], "action_type": "lay_egg"}
 
-    # Hunt: move toward weakest visible enemy
-    if enemies and moves:
-        # Target the weakest enemy we can beat
+    # Hunt: move toward weakest visible enemy (only if we have energy to spare)
+    if enemies and moves and energy_pct > 0.4:
         my_power = dino["dimension"] * dino["energy"] * 2  # carnivore 2x
         weak_prey = [e for e in enemies if e["dimension"] * e["max_energy"] < my_power]
-        target = min(weak_prey or enemies,
-                     key=lambda e: dist(dino["x"], dino["y"], e["x"], e["y"]))
+        if weak_prey:
+            target = min(weak_prey,
+                         key=lambda e: dist(dino["x"], dino["y"], e["x"], e["y"]))
 
-        # Check if we can move onto them (attack!)
-        attack = next((m for m in moves
-                       if m["target_x"] == target["x"] and m["target_y"] == target["y"]), None)
-        if attack:
-            return attack
+            # Attack if adjacent
+            attack = next((m for m in moves
+                           if m["target_x"] == target["x"] and m["target_y"] == target["y"]), None)
+            if attack:
+                return attack
 
-        # Close the distance
-        move = best_move_toward(moves, target["x"], target["y"])
-        if move:
-            return move
+            # Close distance
+            move = best_move_toward(moves, target["x"], target["y"])
+            if move:
+                return move
 
-    # No prey visible — eat carrion
-    on_carrion = any(c["x"] == dino["x"] and c["y"] == dino["y"]
-                     and c["cell_type"] == "carrion" and c["energy"] > 50
-                     for c in state["visible_cells"])
-
-    if on_carrion and energy_pct < 0.9:
-        return {"dino_id": dino["id"], "action_type": "rest"}
-
+    # Move toward carrion
     carrion = find_food_cells(state, "carrion")
     if carrion and moves:
         best = max(carrion, key=lambda f: f[2])
@@ -186,10 +210,14 @@ def carnivore_action(api, game_id, state, dino, legal, rng):
         if move:
             return move
 
-    # Explore aggressively — patrol the map looking for prey
-    if moves:
-        return rng.choice(moves)
+    # Explore cautiously — only move 1 step to conserve energy
+    if moves and energy_pct > 0.4:
+        short_moves = [m for m in moves
+                       if dist(dino["x"], dino["y"], m["target_x"], m["target_y"]) == 1]
+        if short_moves:
+            return rng.choice(short_moves)
 
+    # Low energy, nothing to do — rest and hope for carrion to spawn nearby
     return {"dino_id": dino["id"], "action_type": "rest"}
 
 

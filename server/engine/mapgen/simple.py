@@ -21,7 +21,7 @@ class SimpleMapGenerator:
         self,
         water_ratio: float = 0.40,
         veg_ratio: float = 0.25,
-        carrion_ratio: float = 0.05,
+        carrion_ratio: float = 0.10,
         smoothing_iterations: int = 4,
     ):
         self.water_ratio = water_ratio

@@ -94,11 +94,15 @@ def greedy_strategy(bot: BotClient, state: dict, dino: dict, diet: str, rng: ran
         bot.queue_action(dino["id"], "move", target_x=move["target_x"], target_y=move["target_y"])
         return
 
-    # Explore: random move
-    if moves:
-        m = rng.choice(moves)
+    # Explore: only if energy is decent, and take short steps
+    if moves and energy_pct > 0.4:
+        short = [m for m in moves if abs(m["target_x"]-dino["x"]) + abs(m["target_y"]-dino["y"]) == 1]
+        m = rng.choice(short if short else moves)
         bot.queue_action(dino["id"], "move", target_x=m["target_x"], target_y=m["target_y"])
         return
+
+    # Low energy — rest
+    bot.queue_action(dino["id"], "rest")
 
     bot.queue_action(dino["id"], "rest")
 

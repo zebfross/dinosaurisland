@@ -54,13 +54,13 @@ class TestDinosaur:
 
     def test_vision_range(self):
         d1 = Dinosaur(species_id="s1", x=0, y=0, dimension=1, max_lifespan=30)
-        assert d1.vision_range == 2
+        assert d1.vision_range == 3
 
         d3 = Dinosaur(species_id="s1", x=0, y=0, dimension=3, max_lifespan=30)
-        assert d3.vision_range == 3
+        assert d3.vision_range == 4
 
         d5 = Dinosaur(species_id="s1", x=0, y=0, dimension=5, max_lifespan=30)
-        assert d5.vision_range == 4
+        assert d5.vision_range == 5
 
     def test_default_values(self):
         d = Dinosaur(species_id="s1", x=5, y=5, max_lifespan=30)

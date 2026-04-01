@@ -83,7 +83,7 @@ class TestDecayCarrion:
         ]]
         gm = GameMap(width=2, height=1, cells=cells)
         decay_carrion(gm, random.Random(1))
-        assert gm.get_cell(0, 0).energy == 300 - 300 / 30
+        assert gm.get_cell(0, 0).energy == 300 - 300 / 50
 
     def test_respawn_when_depleted(self):
         cells = [[

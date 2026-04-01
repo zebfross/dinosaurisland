@@ -14,7 +14,7 @@ DINO_MAX_LIFESPAN = 36
 STARTING_DIMENSION = 1
 MAX_DIMENSION = 5
 ENERGY_PER_DIMENSION = 1000
-STARTING_ENERGY = 750
+STARTING_ENERGY = 900
 
 # Actions
 GROW_ENERGY_FRACTION = 0.5  # costs half of new max energy
@@ -29,7 +29,7 @@ COMBAT_ENERGY_ABSORPTION = 0.75
 
 # Feeding / map regeneration
 VEG_REGEN_FRACTION = 1 / 20  # per turn
-CARRION_DECAY_FRACTION = 1 / 30  # per turn
+CARRION_DECAY_FRACTION = 1 / 50  # per turn
 
 # Vision ranges by dimension
-VISION_RANGE = {1: 2, 2: 3, 3: 3, 4: 4, 5: 4}
+VISION_RANGE = {1: 3, 2: 3, 3: 4, 4: 5, 5: 5}

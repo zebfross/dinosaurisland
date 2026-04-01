@@ -49,7 +49,7 @@ class TestUpdateFogOfWar:
         update_fog_of_war(sp, gm)
         revealed = sp.revealed_set
         assert (5, 5) in revealed
-        assert len(revealed) == 25  # dim 1 = vision 2, 5x5 = 25
+        assert len(revealed) == 49  # dim 1 = vision 3, 7x7 = 49
 
     def test_persistence(self):
         gm = _make_plain_map(20, 20)
