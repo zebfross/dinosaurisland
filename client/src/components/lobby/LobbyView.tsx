@@ -8,6 +8,7 @@ export function LobbyView() {
   const navigate = useNavigate();
   const { username, clearAuth, games, setGames, setGameId } = useGameStore();
   const [showCreate, setShowCreate] = useState(false);
+  const [showHowTo, setShowHowTo] = useState(false);
   const [error, setError] = useState('');
 
   const refreshGames = () => { listGames().then(setGames).catch(() => {}); };
@@ -43,6 +44,12 @@ export function LobbyView() {
           </nav>
         </div>
         <div className="flex items-center gap-4">
+          <button
+            onClick={() => setShowHowTo(true)}
+            className="bg-primary text-on-primary px-4 py-1.5 font-headline font-bold text-xs tracking-widest uppercase hover:brightness-110 active:scale-95 duration-75"
+          >
+            How to Connect
+          </button>
           <span className="text-on-surface-variant text-xs font-mono uppercase">user: {username}</span>
           <button
             onClick={() => { clearAuth(); navigate('/'); }}
@@ -148,6 +155,111 @@ export function LobbyView() {
               </div>
             </div>
           ))}
+        </div>
+      </div>
+
+      {/* How to Connect modal */}
+      {showHowTo && <HowToConnectModal onClose={() => setShowHowTo(false)} games={games} />}
+    </div>
+  );
+}
+
+function HowToConnectModal({ onClose, games }: { onClose: () => void; games: GameSummary[] }) {
+  const persistent = games.find(g => g.persistent);
+  const serverUrl = window.location.origin + (import.meta.env.BASE_URL || '/').replace(/\/$/, '');
+
+  return (
+    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div className="bg-surface-container border border-outline-variant/30 max-w-2xl w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div className="flex justify-between items-center p-6 border-b border-outline-variant/20">
+          <h2 className="font-headline font-bold text-primary text-lg uppercase">How_to_Connect</h2>
+          <button onClick={onClose} className="text-on-surface-variant hover:text-on-surface text-xl">x</button>
+        </div>
+
+        <div className="p-6 space-y-6">
+          {/* Quick start */}
+          <div>
+            <h3 className="font-headline font-bold text-on-surface uppercase text-sm mb-3">
+              1. Quick Start (one command)
+            </h3>
+            <div className="bg-surface-container-highest p-4 font-mono text-sm text-primary border border-outline-variant/20 overflow-x-auto">
+              <div className="text-on-surface-variant text-[10px] uppercase mb-2"># Download and run</div>
+              curl -sO {serverUrl}/api/quickstart && python3 quickstart_bot.py
+            </div>
+          </div>
+
+          {/* Manual setup */}
+          <div>
+            <h3 className="font-headline font-bold text-on-surface uppercase text-sm mb-3">
+              2. Write Your Own Bot
+            </h3>
+            <div className="bg-surface-container-highest p-4 font-mono text-xs text-on-surface border border-outline-variant/20 overflow-x-auto whitespace-pre">{`import json, urllib.request
+
+SERVER = "${serverUrl}"
+GAME   = "${persistent?.game_id || 'GAME_ID'}"
+
+def api(method, path, data=None):
+    body = json.dumps(data).encode() if data else None
+    req = urllib.request.Request(
+        f"{SERVER}{path}", data=body,
+        headers={"Content-Type": "application/json",
+                 "Authorization": f"Bearer {api.token}"},
+        method=method)
+    with urllib.request.urlopen(req) as r:
+        return json.loads(r.read())
+api.token = ""
+
+# Register & join
+api.token = api("POST", "/api/auth/register",
+    {"username": "MyBot"})["token"]
+api("POST", f"/api/games/{GAME}/join",
+    {"species_name": "MyBot", "diet": "herbivore"})
+
+# Game loop
+while True:
+    state = api("GET", f"/api/games/{GAME}/state")
+    for dino in state["dinosaurs"]:
+        if dino["is_mine"]:
+            # Your logic here!
+            api("POST", f"/api/games/{GAME}/actions",
+                {"actions": [{"dino_id": dino["id"],
+                              "action_type": "rest"}]})
+    import time; time.sleep(2)`}</div>
+          </div>
+
+          {/* API reference */}
+          <div>
+            <h3 className="font-headline font-bold text-on-surface uppercase text-sm mb-3">
+              3. API Reference
+            </h3>
+            <div className="space-y-2 font-mono text-xs">
+              {[
+                ['POST', '/api/auth/register', 'Register: {"username": "..."}'],
+                ['POST', `/api/games/{'{id}'}/join`, 'Join: {"species_name": "...", "diet": "herbivore|carnivore"}'],
+                ['GET', `/api/games/{'{id}'}/state`, 'Your fog-of-war filtered game state'],
+                ['GET', `/api/games/{'{id}'}/legal-actions/{'{dino_id}'}`, 'Legal actions for a dinosaur'],
+                ['POST', `/api/games/{'{id}'}/actions`, 'Submit: {"actions": [{dino_id, action_type, target_x, target_y}]}'],
+                ['GET', `/api/games/{'{id}'}/spectate`, 'Full map (no fog, no auth needed)'],
+              ].map(([method, path, desc]) => (
+                <div key={path} className="flex gap-3 items-start py-1 border-b border-outline-variant/10">
+                  <span className={`shrink-0 w-12 ${method === 'POST' ? 'text-warning' : 'text-primary'}`}>{method}</span>
+                  <span className="text-on-surface shrink-0">{path}</span>
+                  <span className="text-on-surface-variant ml-auto">{desc}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Game info */}
+          {persistent && (
+            <div className="bg-primary/10 border border-primary/30 p-4">
+              <div className="text-[10px] text-primary uppercase font-bold font-mono mb-1">Persistent Arena Game ID</div>
+              <div className="text-on-surface font-mono text-sm select-all">{persistent.game_id}</div>
+              <div className="text-on-surface-variant text-[10px] font-mono mt-1">
+                Turn {persistent.turn} | {persistent.species_names.length} species connected
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

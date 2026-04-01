@@ -165,6 +165,17 @@ def get_replay(game_id):
     return jsonify(replay.model_dump())
 
 
+@app.route("/api/quickstart", methods=["GET"])
+def quickstart():
+    script = Path(project_root) / "examples" / "quickstart_bot.py"
+    if script.is_file():
+        return send_from_directory(str(script.parent), script.name,
+                                  mimetype="text/plain",
+                                  as_attachment=True,
+                                  download_name="quickstart_bot.py")
+    return jsonify(detail="Not found"), 404
+
+
 # --- Frontend ---
 
 @app.route("/")

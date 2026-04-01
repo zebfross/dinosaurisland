@@ -60,6 +60,14 @@ def create_app(testing: bool = False) -> FastAPI:
     def health():
         return {"status": "ok"}
 
+    @app.get("/api/quickstart")
+    def quickstart():
+        """Serve the quickstart bot script for `curl -sO .../api/quickstart`."""
+        script_path = Path(__file__).parent.parent.parent / "examples" / "quickstart_bot.py"
+        if script_path.is_file():
+            return FileResponse(script_path, filename="quickstart_bot.py", media_type="text/plain")
+        return {"detail": "quickstart_bot.py not found"}
+
     # Serve built frontend (if it exists)
     if not testing and CLIENT_DIST.is_dir():
         # Static assets (JS, CSS, images)
