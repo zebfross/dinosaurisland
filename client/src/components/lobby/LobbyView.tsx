@@ -73,6 +73,44 @@ export function LobbyView() {
 
         {showCreate && <CreateGamePanel onCreated={() => { setShowCreate(false); refreshGames(); }} />}
 
+        {/* Persistent game — featured at top */}
+        {games.filter(g => g.persistent).map(game => (
+          <div key={game.game_id} className="bg-surface-container-high p-6 mb-6 border-l-4 border-primary">
+            <div className="flex justify-between items-start">
+              <div>
+                <div className="flex items-center gap-3 mb-2">
+                  <span className="font-headline font-bold text-primary text-lg uppercase">Persistent_Arena</span>
+                  <div className="px-2 py-0.5 text-[10px] font-mono uppercase text-primary bg-primary/10 border border-primary/30">
+                    Always Open
+                  </div>
+                </div>
+                <div className="text-xs text-on-surface-variant font-mono">
+                  {game.species_names.length > 0
+                    ? `${game.species_names.length} species: ${game.species_names.join(' // ')}`
+                    : 'No bots connected yet — be the first!'}
+                  {' | '}Turn {game.turn}
+                </div>
+                <div className="text-[10px] text-on-surface-variant/50 font-mono mt-2">
+                  Connect your bot to this game ID: {game.game_id}
+                </div>
+              </div>
+              <button
+                onClick={() => handleSpectate(game)}
+                className="bg-primary text-on-primary px-5 py-2 font-headline font-bold text-sm tracking-widest uppercase hover:brightness-110 active:scale-95 duration-75"
+              >
+                Watch
+              </button>
+            </div>
+          </div>
+        ))}
+
+        {/* Other games */}
+        {games.filter(g => !g.persistent).length === 0 && games.filter(g => g.persistent).length > 0 && (
+          <div className="text-on-surface-variant/50 text-center py-8 font-mono text-sm uppercase">
+            No other games. Create one for a private match, or join the arena above.
+          </div>
+        )}
+
         {games.length === 0 && (
           <div className="text-on-surface-variant/50 text-center py-16 font-mono text-sm uppercase">
             No active games. Create one, then connect bots via the API.
@@ -80,7 +118,7 @@ export function LobbyView() {
         )}
 
         <div className="flex flex-col gap-2">
-          {games.map(game => (
+          {games.filter(g => !g.persistent).map(game => (
             <div key={game.game_id} className="bg-surface-container-high p-5 flex justify-between items-center border-l-4 border-outline-variant/30 hover:border-primary/50 transition-colors">
               <div>
                 <div className="font-mono font-bold text-on-surface text-sm">

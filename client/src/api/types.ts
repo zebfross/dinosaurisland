@@ -17,6 +17,7 @@ export interface GameSummary {
   max_turns: number;
   player_count: number;
   species_names: string[];
+  persistent?: boolean;
 }
 
 export interface JoinGameResponse {

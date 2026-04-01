@@ -63,6 +63,8 @@ class GameSession:
     submitted: set[str] = field(default_factory=set)
     # Replay frames — one snapshot per turn
     replay_frames: list[ReplayFrame] = field(default_factory=list)
+    # Persistent mode — allows mid-game joins, no max turn limit
+    persistent: bool = field(default=False)
     # Guard against concurrent turn processing
     _processing_turn: bool = field(default=False)
 
@@ -111,19 +113,43 @@ class GameManager:
         max_turns: int = 120,
         seed: int | None = None,
         turn_timeout: int = 30,
+        persistent: bool = False,
     ) -> GameSession:
         actual_seed = seed if seed is not None else random.randint(0, 999999)
         rng = random.Random(actual_seed)
         engine = GameEngine(rng=rng)
-        state = engine.create_game(width=width, height=height, max_turns=max_turns)
+        # Persistent games have a very high turn limit
+        effective_max_turns = 999999 if persistent else max_turns
+        state = engine.create_game(width=width, height=height, max_turns=effective_max_turns)
 
         session = GameSession(
             game_id=state.id,
             state=state,
             engine=engine,
             turn_timeout=turn_timeout,
+            persistent=persistent,
         )
         self.games[state.id] = session
+        return session
+
+    def get_persistent_game(self) -> GameSession | None:
+        """Return the persistent game if one exists."""
+        for session in self.games.values():
+            if session.persistent:
+                return session
+        return None
+
+    def ensure_persistent_game(self) -> GameSession:
+        """Create the persistent game if it doesn't exist. Auto-start it."""
+        existing = self.get_persistent_game()
+        if existing:
+            return existing
+        session = self.create_game(
+            width=40, height=40, turn_timeout=10, persistent=True,
+        )
+        # Start immediately — bots can join anytime
+        session.engine.start_game(session.state)
+        session.replay_frames.append(self._build_replay_frame(session, None))
         return session
 
     def join_game(
@@ -136,8 +162,10 @@ class GameManager:
         session = self.games.get(game_id)
         if not session:
             raise ValueError("Game not found")
-        if session.state.phase != GamePhase.WAITING:
+        if not session.persistent and session.state.phase != GamePhase.WAITING:
             raise ValueError("Game already started")
+        if session.state.phase == GamePhase.FINISHED:
+            raise ValueError("Game is finished")
         if player_id in session.player_to_species:
             raise ValueError("Player already in this game")
 
@@ -230,11 +258,17 @@ class GameManager:
         try:
             result = session.engine.process_turn(session.state)
 
+            # Persistent games never truly end — keep running for new joiners
+            if session.persistent and session.state.phase == GamePhase.FINISHED:
+                session.state.phase = GamePhase.ACTIVE
+
             # Build scores
             scores = self._build_scores(session)
 
-            # Record replay frame
+            # Record replay frame (cap at last 500 to avoid unbounded memory)
             session.replay_frames.append(self._build_replay_frame(session, result))
+            if len(session.replay_frames) > 500:
+                session.replay_frames = session.replay_frames[-500:]
 
             # Broadcast turn result summary
             await self._broadcast(
@@ -414,6 +448,7 @@ class GameManager:
                 species_names=[
                     sp.name for sp in session.state.species.values()
                 ],
+                persistent=session.persistent,
             ))
         return summaries
 

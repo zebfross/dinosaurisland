@@ -44,6 +44,7 @@ class GameSummary(BaseModel):
     max_turns: int
     player_count: int
     species_names: list[str]
+    persistent: bool = False
 
 
 class JoinGameRequest(BaseModel):

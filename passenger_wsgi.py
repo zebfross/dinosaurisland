@@ -189,15 +189,49 @@ def _check_and_process(game_id):
         return
     active = {sid for sid, sp in session.state.species.items() if sp.dino_count > 0}
     if active and active <= session.submitted:
-        if not session._processing_turn:
-            session._processing_turn = True
-            try:
-                result = session.engine.process_turn(session.state)
-                session.replay_frames.append(manager._build_replay_frame(session, result))
-                if session.state.phase != GamePhase.FINISHED:
-                    session.submitted.clear()
-            finally:
-                session._processing_turn = False
+        _do_process_turn(session)
 
+
+def _do_process_turn(session):
+    if session._processing_turn:
+        return
+    session._processing_turn = True
+    try:
+        result = session.engine.process_turn(session.state)
+        # Persistent games never end
+        if session.persistent and session.state.phase == GamePhase.FINISHED:
+            session.state.phase = GamePhase.ACTIVE
+        session.replay_frames.append(manager._build_replay_frame(session, result))
+        if len(session.replay_frames) > 500:
+            session.replay_frames = session.replay_frames[-500:]
+        if session.state.phase != GamePhase.FINISHED:
+            session.submitted.clear()
+    finally:
+        session._processing_turn = False
+
+
+# --- Persistent game timer (background thread) ---
+
+import threading
+import time
+
+def _persistent_timer():
+    """Process turns on a timer for the persistent game."""
+    while True:
+        time.sleep(10)  # 10 second turns
+        session = manager.get_persistent_game()
+        if session and session.state.phase == GamePhase.ACTIVE:
+            # Only process if there are living dinos
+            has_dinos = any(sp.dino_count > 0 for sp in session.state.species.values())
+            if has_dinos:
+                _do_process_turn(session)
+
+
+# Create persistent game on startup
+persistent = manager.ensure_persistent_game()
+
+# Start timer thread
+_timer_thread = threading.Thread(target=_persistent_timer, daemon=True)
+_timer_thread.start()
 
 application = app
