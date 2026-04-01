@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Dinosaur Island — Quickstart Bot
 
-A self-contained bot that connects to the persistent arena and plays
-using a simple greedy strategy. No dependencies beyond Python 3.
+A self-contained bot that connects to the persistent arena and plays.
+No dependencies beyond Python 3. Supports both herbivore and carnivore.
 
 Usage:
     python quickstart_bot.py
@@ -42,23 +42,160 @@ class API:
     def post(self, path, data=None): return self._req("POST", path, data)
 
 
-# --- Bot logic ---
+# --- Helpers ---
 
-def find_food_move(state, dino, legal_actions, diet):
-    """Pick the move that gets closest to food."""
-    food_type = "vegetation" if diet == "herbivore" else "carrion"
-    food = [(c["x"], c["y"]) for c in state["visible_cells"]
-            if c["cell_type"] == food_type and c["energy"] > 0]
-    moves = [a for a in legal_actions if a["action_type"] == "move"]
-    if not food or not moves:
+def dist(x1, y1, x2, y2):
+    return abs(x1 - x2) + abs(y1 - y2)
+
+
+def best_move_toward(moves, tx, ty):
+    """Pick the move that gets closest to target (tx, ty)."""
+    if not moves:
         return None
-    return min(moves, key=lambda m: min(
-        abs(m["target_x"] - fx) + abs(m["target_y"] - fy) for fx, fy in food
-    ))
+    return min(moves, key=lambda m: dist(m["target_x"], m["target_y"], tx, ty))
 
+
+def find_food_cells(state, food_type):
+    """Find cells with food energy."""
+    return [(c["x"], c["y"], c["energy"]) for c in state["visible_cells"]
+            if c["cell_type"] == food_type and c["energy"] > 50]
+
+
+def find_enemy_dinos(state):
+    """Find enemy dinos we can see."""
+    return [d for d in state["dinosaurs"] if not d["is_mine"]]
+
+
+# --- Herbivore strategy ---
+#
+# Philosophy: graze sustainably. Spread out, find rich vegetation,
+# stay put on it to eat while it regrows. Grow big, lay eggs to
+# build a herd. Avoid carnivores.
+
+def herbivore_action(api, game_id, state, dino, legal, rng):
+    moves = [a for a in legal if a["action_type"] == "move"]
+    energy_pct = dino["energy"] / dino["max_energy"] if dino["max_energy"] > 0 else 0
+
+    # Am I on vegetation? Check current cell
+    on_food = any(c["x"] == dino["x"] and c["y"] == dino["y"]
+                  and c["cell_type"] == "vegetation" and c["energy"] > 100
+                  for c in state["visible_cells"])
+
+    # Are there carnivores nearby? Flee!
+    enemies = find_enemy_dinos(state)
+    carnivores = [e for e in enemies if e["diet"] == "carnivore"]
+    nearby_threats = [e for e in carnivores if dist(dino["x"], dino["y"], e["x"], e["y"]) <= 4]
+
+    if nearby_threats and moves:
+        # Move away from the nearest threat
+        threat = min(nearby_threats, key=lambda e: dist(dino["x"], dino["y"], e["x"], e["y"]))
+        flee = max(moves, key=lambda m: dist(m["target_x"], m["target_y"], threat["x"], threat["y"]))
+        return flee
+
+    # Lay egg if we have plenty of energy and few dinos
+    my_dinos = [d for d in state["dinosaurs"] if d["is_mine"]]
+    if energy_pct > 0.75 and len(my_dinos) < 4:
+        if any(a["action_type"] == "lay_egg" for a in legal):
+            return {"dino_id": dino["id"], "action_type": "lay_egg"}
+
+    # Grow if we have energy and are small
+    if energy_pct > 0.65 and dino["dimension"] < 3:
+        if any(a["action_type"] == "grow" for a in legal):
+            return {"dino_id": dino["id"], "action_type": "grow"}
+
+    # If sitting on good food, stay and eat
+    if on_food and energy_pct < 0.95:
+        return {"dino_id": dino["id"], "action_type": "rest"}
+
+    # Move toward richest visible vegetation
+    food = find_food_cells(state, "vegetation")
+    if food and moves:
+        # Prefer food that other dinos aren't already heading toward
+        my_positions = {(d["x"], d["y"]) for d in my_dinos}
+        unoccupied_food = [(x, y, e) for x, y, e in food if (x, y) not in my_positions]
+        target_food = unoccupied_food if unoccupied_food else food
+
+        # Pick richest food source
+        best = max(target_food, key=lambda f: f[2])
+        move = best_move_toward(moves, best[0], best[1])
+        if move:
+            return move
+
+    # Explore: move in a consistent direction to discover new areas
+    if moves:
+        # Prefer moves that go away from map center (explore edges)
+        return max(moves, key=lambda m: dist(m["target_x"], m["target_y"], 20, 20) + rng.random())
+
+    return {"dino_id": dino["id"], "action_type": "rest"}
+
+
+# --- Carnivore strategy ---
+#
+# Philosophy: hunt aggressively. Find prey (enemy herbivores), close in,
+# and attack. Eat carrion when no prey is available. Stay lean and fast
+# (carnivores move 3 steps vs 2 for herbivores). Grow big for combat power.
+
+def carnivore_action(api, game_id, state, dino, legal, rng):
+    moves = [a for a in legal if a["action_type"] == "move"]
+    energy_pct = dino["energy"] / dino["max_energy"] if dino["max_energy"] > 0 else 0
+
+    enemies = find_enemy_dinos(state)
+    my_dinos = [d for d in state["dinosaurs"] if d["is_mine"]]
+
+    # Grow first — bigger = stronger in combat
+    if energy_pct > 0.6 and dino["dimension"] < 4:
+        if any(a["action_type"] == "grow" for a in legal):
+            return {"dino_id": dino["id"], "action_type": "grow"}
+
+    # Lay egg if strong and few dinos
+    if energy_pct > 0.8 and len(my_dinos) < 3:
+        if any(a["action_type"] == "lay_egg" for a in legal):
+            return {"dino_id": dino["id"], "action_type": "lay_egg"}
+
+    # Hunt: move toward weakest visible enemy
+    if enemies and moves:
+        # Target the weakest enemy we can beat
+        my_power = dino["dimension"] * dino["energy"] * 2  # carnivore 2x
+        weak_prey = [e for e in enemies if e["dimension"] * e["max_energy"] < my_power]
+        target = min(weak_prey or enemies,
+                     key=lambda e: dist(dino["x"], dino["y"], e["x"], e["y"]))
+
+        # Check if we can move onto them (attack!)
+        attack = next((m for m in moves
+                       if m["target_x"] == target["x"] and m["target_y"] == target["y"]), None)
+        if attack:
+            return attack
+
+        # Close the distance
+        move = best_move_toward(moves, target["x"], target["y"])
+        if move:
+            return move
+
+    # No prey visible — eat carrion
+    on_carrion = any(c["x"] == dino["x"] and c["y"] == dino["y"]
+                     and c["cell_type"] == "carrion" and c["energy"] > 50
+                     for c in state["visible_cells"])
+
+    if on_carrion and energy_pct < 0.9:
+        return {"dino_id": dino["id"], "action_type": "rest"}
+
+    carrion = find_food_cells(state, "carrion")
+    if carrion and moves:
+        best = max(carrion, key=lambda f: f[2])
+        move = best_move_toward(moves, best[0], best[1])
+        if move:
+            return move
+
+    # Explore aggressively — patrol the map looking for prey
+    if moves:
+        return rng.choice(moves)
+
+    return {"dino_id": dino["id"], "action_type": "rest"}
+
+
+# --- Main loop ---
 
 def play_turn(api, game_id, state, diet, rng):
-    """Decide actions for all dinos and submit."""
     my_dinos = [d for d in state["dinosaurs"] if d["is_mine"]]
     actions = []
 
@@ -67,31 +204,12 @@ def play_turn(api, game_id, state, diet, rng):
         if not legal:
             continue
 
-        energy_pct = dino["energy"] / dino["max_energy"] if dino["max_energy"] > 0 else 0
+        if diet == "herbivore":
+            action = herbivore_action(api, game_id, state, dino, legal, rng)
+        else:
+            action = carnivore_action(api, game_id, state, dino, legal, rng)
 
-        # Lay egg if energy is high
-        if energy_pct > 0.8 and any(a["action_type"] == "lay_egg" for a in legal):
-            actions.append({"dino_id": dino["id"], "action_type": "lay_egg"})
-            continue
-
-        # Grow if energy is high
-        if energy_pct > 0.7 and any(a["action_type"] == "grow" for a in legal):
-            actions.append({"dino_id": dino["id"], "action_type": "grow"})
-            continue
-
-        # Move toward food
-        food_move = find_food_move(state, dino, legal, diet)
-        if food_move:
-            actions.append(food_move)
-            continue
-
-        # Random move
-        moves = [a for a in legal if a["action_type"] == "move"]
-        if moves:
-            actions.append(rng.choice(moves))
-            continue
-
-        actions.append({"dino_id": dino["id"], "action_type": "rest"})
+        actions.append(action)
 
     if actions:
         api.post(f"/api/games/{game_id}/actions", {"actions": actions})
@@ -122,7 +240,6 @@ def main():
         game_id = args.game
     else:
         games = api.get("/api/games")
-        # Prefer persistent arena, fall back to any joinable game
         persistent = [g for g in games if g.get("persistent")]
         active = [g for g in games if g["phase"] in ("waiting", "active")]
         pick = persistent[0] if persistent else (active[0] if active else None)
@@ -146,7 +263,7 @@ def main():
             raise
 
     # Play loop
-    print(f"Playing! Press Ctrl+C to disconnect.\n")
+    print(f"Playing as {args.diet}! Press Ctrl+C to disconnect.\n")
     last_turn = -1
     try:
         while True:
@@ -163,7 +280,8 @@ def main():
                         pts = my_score["score"] if my_score else 0
                         print(f"  Turn {turn}: {len(my_dinos)} dinos, {pts} pts")
                 else:
-                    print(f"  Turn {turn}: All dinos dead. Waiting for respawn...")
+                    if turn % 20 == 0:
+                        print(f"  Turn {turn}: All dinos dead. Waiting...")
                 last_turn = turn
 
             time.sleep(1)

@@ -26,48 +26,78 @@ from server.sdk import BotClient
 # --- Bot strategies ---
 
 def greedy_strategy(bot: BotClient, state: dict, dino: dict, diet: str, rng: random.Random):
-    """Seek nearest food, grow/lay eggs when energy is high."""
+    """Smart strategy: graze/hunt, grow, reproduce, explore."""
     legal = bot.get_legal_actions(dino["id"])
     if not legal:
         return
 
+    moves = [a for a in legal if a["action_type"] == "move"]
     energy_pct = dino["energy"] / dino["max_energy"] if dino["max_energy"] > 0 else 0
+    my_dinos = [d for d in state["dinosaurs"] if d["is_mine"]]
 
-    # Lay egg if lots of energy
-    if energy_pct > 0.8:
-        egg = next((a for a in legal if a["action_type"] == "lay_egg"), None)
-        if egg:
-            bot.queue_action(dino["id"], "lay_egg")
+    food_type = "vegetation" if diet == "herbivore" else "carrion"
+    food = [(c["x"], c["y"], c["energy"]) for c in state["visible_cells"]
+            if c["cell_type"] == food_type and c["energy"] > 50]
+    enemies = [d for d in state["dinosaurs"] if not d["is_mine"]]
+
+    # Carnivore: hunt weak prey if visible
+    if diet == "carnivore" and enemies and moves:
+        my_power = dino["dimension"] * dino["energy"] * 2
+        weak = [e for e in enemies if e["dimension"] * e["max_energy"] < my_power]
+        if weak:
+            target = min(weak, key=lambda e: abs(dino["x"]-e["x"]) + abs(dino["y"]-e["y"]))
+            attack = next((m for m in moves if m["target_x"] == target["x"] and m["target_y"] == target["y"]), None)
+            if attack:
+                bot.queue_action(dino["id"], "move", target_x=attack["target_x"], target_y=attack["target_y"])
+                return
+            best = min(moves, key=lambda m: abs(m["target_x"]-target["x"]) + abs(m["target_y"]-target["y"]))
+            bot.queue_action(dino["id"], "move", target_x=best["target_x"], target_y=best["target_y"])
             return
 
-    # Grow if lots of energy
-    if energy_pct > 0.7:
-        grow = next((a for a in legal if a["action_type"] == "grow"), None)
-        if grow:
+    # Herbivore: flee from nearby carnivores
+    if diet == "herbivore" and moves:
+        threats = [e for e in enemies if e["diet"] == "carnivore"
+                   and abs(dino["x"]-e["x"]) + abs(dino["y"]-e["y"]) <= 4]
+        if threats:
+            t = threats[0]
+            flee = max(moves, key=lambda m: abs(m["target_x"]-t["x"]) + abs(m["target_y"]-t["y"]))
+            bot.queue_action(dino["id"], "move", target_x=flee["target_x"], target_y=flee["target_y"])
+            return
+
+    # Grow if decent energy and small
+    if energy_pct > 0.6 and dino["dimension"] < (4 if diet == "carnivore" else 3):
+        if any(a["action_type"] == "grow" for a in legal):
             bot.queue_action(dino["id"], "grow")
             return
 
-    # Move toward food
-    target_type = "vegetation" if diet == "herbivore" else "carrion"
-    food = [(c["x"], c["y"]) for c in state["visible_cells"]
-            if c["cell_type"] == target_type and c["energy"] > 0]
-    moves = [a for a in legal if a["action_type"] == "move"]
+    # Lay egg if high energy and few dinos
+    if energy_pct > 0.75 and len(my_dinos) < 4:
+        if any(a["action_type"] == "lay_egg" for a in legal):
+            bot.queue_action(dino["id"], "lay_egg")
+            return
 
-    if food and moves:
-        best_move = min(moves, key=lambda m: min(
-            abs(m["target_x"] - fx) + abs(m["target_y"] - fy)
-            for fx, fy in food
-        ))
-        bot.queue_action(dino["id"], "move",
-                         target_x=best_move["target_x"],
-                         target_y=best_move["target_y"])
+    # On food? Stay and eat
+    on_food = any(c["x"] == dino["x"] and c["y"] == dino["y"]
+                  and c["cell_type"] == food_type and c["energy"] > 50
+                  for c in state["visible_cells"])
+    if on_food and energy_pct < 0.95:
+        bot.queue_action(dino["id"], "rest")
         return
 
-    # Random move
+    # Move toward richest food
+    if food and moves:
+        my_pos = {(d["x"], d["y"]) for d in my_dinos}
+        unoccupied = [(x, y, e) for x, y, e in food if (x, y) not in my_pos]
+        targets = unoccupied if unoccupied else food
+        best = max(targets, key=lambda f: f[2])
+        move = min(moves, key=lambda m: abs(m["target_x"]-best[0]) + abs(m["target_y"]-best[1]))
+        bot.queue_action(dino["id"], "move", target_x=move["target_x"], target_y=move["target_y"])
+        return
+
+    # Explore: random move
     if moves:
         m = rng.choice(moves)
-        bot.queue_action(dino["id"], "move",
-                         target_x=m["target_x"], target_y=m["target_y"])
+        bot.queue_action(dino["id"], "move", target_x=m["target_x"], target_y=m["target_y"])
         return
 
     bot.queue_action(dino["id"], "rest")
