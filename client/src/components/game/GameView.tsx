@@ -84,17 +84,29 @@ export function GameView() {
     wsRef.current = ws;
     let wsConnected = false;
 
+    let prevScores = new Map<string, number>();
+
     ws.onMessage((msg: WsMessage) => {
       wsConnected = true;
       switch (msg.type) {
         case 'state_update': applyState(msg.state); break;
-        case 'turn_start': setDeadline(msg.deadline_seconds); addEvent(`Turn ${msg.turn} started`); break;
-        case 'turn_result':
-          if (msg.combats > 0) addEvent(`${msg.combats} combat(s)`);
-          if (msg.deaths > 0) addEvent(`${msg.deaths} death(s)`);
-          if (msg.hatches > 0) addEvent(`${msg.hatches} egg(s) hatched`);
+        case 'turn_start': setDeadline(msg.deadline_seconds); break;
+        case 'turn_result': {
+          // Score deltas
+          const parts: string[] = [];
+          for (const s of msg.scores) {
+            const prev = prevScores.get(s.species_id) ?? 0;
+            const delta = s.score - prev;
+            if (delta > 0) parts.push(`${s.name} +${delta}`);
+            prevScores.set(s.species_id, s.score);
+          }
+          if (parts.length > 0) addEvent(`T${msg.turn}: ${parts.join(', ')}`);
+          if (msg.hatches > 0) addEvent(`T${msg.turn}: ${msg.hatches} egg(s) hatched`);
+          if (msg.combats > 0) addEvent(`T${msg.turn}: ${msg.combats} combat(s)`);
+          if (msg.deaths > 0) addEvent(`T${msg.turn}: ${msg.deaths} death(s)`);
           updateScores(msg.scores);
           break;
+        }
         case 'phase_change':
           setPhase(msg.phase);
           if (msg.phase === 'finished') {
