@@ -191,6 +191,19 @@ export class CanvasRenderer {
       }
     }
 
+    // --- Edge blending pass ---
+    if (ts >= 8) {
+      for (let y = startY; y < endY; y++) {
+        for (let x = startX; x < endX; x++) {
+          const cell = cellMap.get(`${x},${y}`);
+          if (!cell) continue;
+          const sx = x * ts - this.cameraX;
+          const sy = y * ts - this.cameraY;
+          this._blendEdges(ctx, cell, x, y, sx, sy, ts, cellMap);
+        }
+      }
+    }
+
     // --- Draw eggs ---
     for (const egg of state.eggs) {
       const sx = egg.x * ts - this.cameraX;
@@ -439,6 +452,73 @@ export class CanvasRenderer {
           case 'right': ctx.fillRect(sx + ts * 0.8, sy, ts * 0.2, ts); break;
         }
       }
+    }
+  }
+
+  private _getBaseColor(cell: CellResponse, x: number, y: number): string {
+    switch (cell.cell_type) {
+      case 'water': return pickTileColor(WATER_COLORS, x, y);
+      case 'plain': return pickTileColor(PLAIN_COLORS, x, y);
+      case 'vegetation': {
+        const ratio = cell.max_energy > 0 ? cell.energy / cell.max_energy : 0;
+        return pickTileColor(ratio > 0.5 ? VEG_RICH : ratio > 0.15 ? VEG_MED : VEG_LOW, x, y);
+      }
+      case 'carrion': return pickTileColor(PLAIN_COLORS, x, y);
+      default: return '#0a0a0a';
+    }
+  }
+
+  private _blendEdges(
+    ctx: CanvasRenderingContext2D,
+    cell: CellResponse,
+    x: number, y: number,
+    sx: number, sy: number,
+    ts: number,
+    cellMap: Map<string, CellResponse>,
+  ) {
+    // For each edge, if the neighbor is a different terrain type,
+    // draw a soft gradient from the neighbor's color into this cell
+    const neighbors = [
+      { nx: x, ny: y - 1, dx: 0, dy: 0, gx: 0, gy: 1 },   // top neighbor → blend downward
+      { nx: x, ny: y + 1, dx: 0, dy: 1, gx: 0, gy: -1 },   // bottom → blend upward
+      { nx: x - 1, ny: y, dx: 0, dy: 0, gx: 1, gy: 0 },     // left → blend rightward
+      { nx: x + 1, ny: y, dx: 1, dy: 0, gx: -1, gy: 0 },    // right → blend leftward
+    ];
+
+    const blendDepth = ts * 0.3;
+
+    for (const { nx, ny, dx, dy, gx, gy } of neighbors) {
+      const neighbor = cellMap.get(`${nx},${ny}`);
+      if (!neighbor || neighbor.cell_type === cell.cell_type) continue;
+
+      const nColor = this._getBaseColor(neighbor, nx, ny);
+
+      // Starting point of the gradient (at the edge)
+      const ex = sx + dx * ts;
+      const ey = sy + dy * ts;
+
+      const grad = ctx.createLinearGradient(
+        ex, ey,
+        ex + gx * blendDepth, ey + gy * blendDepth,
+      );
+      grad.addColorStop(0, nColor);
+      grad.addColorStop(1, 'rgba(0,0,0,0)');
+
+      ctx.fillStyle = grad;
+      ctx.globalAlpha = 0.35;
+
+      // Draw a thin strip along the edge
+      if (gx !== 0) {
+        // Horizontal blend (left or right edge)
+        const stripX = gx > 0 ? sx : sx + ts - blendDepth;
+        ctx.fillRect(stripX, sy, blendDepth, ts);
+      } else {
+        // Vertical blend (top or bottom edge)
+        const stripY = gy > 0 ? sy : sy + ts - blendDepth;
+        ctx.fillRect(sx, stripY, ts, blendDepth);
+      }
+
+      ctx.globalAlpha = 1;
     }
   }
 
