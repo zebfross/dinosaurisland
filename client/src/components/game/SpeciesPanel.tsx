@@ -30,7 +30,8 @@ export function SpeciesPanel() {
     speciesMap.get(d.species_id)?.dinos.push(d);
   }
 
-  const sorted = [...speciesMap.entries()].sort((a, b) => b[1].score - a[1].score);
+  const alive = [...speciesMap.entries()].filter(([, sp]) => sp.dinos.length > 0).sort((a, b) => b[1].score - a[1].score);
+  const dead = [...speciesMap.entries()].filter(([, sp]) => sp.dinos.length === 0).sort((a, b) => b[1].score - a[1].score);
 
   return (
     <div className="p-6 flex flex-col gap-4">
@@ -38,7 +39,8 @@ export function SpeciesPanel() {
         Spectator_Mode
       </h3>
 
-      {sorted.map(([speciesId, sp]) => {
+      {/* Alive species — full detail */}
+      {alive.map(([speciesId, sp]) => {
         const c = getColor(speciesId);
         return (
           <div key={speciesId} className={`bg-surface-container-high p-4 border-l-4 ${c.border}`}>
@@ -54,55 +56,71 @@ export function SpeciesPanel() {
             </div>
 
             <div className="space-y-3">
-              {sp.dinos.length === 0 ? (
-                <div className="text-[11px] text-on-surface-variant font-mono">No living dinos</div>
-              ) : (
-                sp.dinos.map(d => {
-                  const energyPct = d.max_energy > 0 ? (d.energy / d.max_energy) * 100 : 0;
-                  const agePct = d.max_lifespan > 0 ? (d.age / d.max_lifespan) * 100 : 0;
-                  const isSelected = d.id === selectedDinoId;
+              {sp.dinos.map(d => {
+                const energyPct = d.max_energy > 0 ? (d.energy / d.max_energy) * 100 : 0;
+                const agePct = d.max_lifespan > 0 ? (d.age / d.max_lifespan) * 100 : 0;
+                const isSelected = d.id === selectedDinoId;
 
-                  return (
-                    <div
-                      key={d.id}
-                      onClick={() => selectDino(isSelected ? null : d.id)}
-                      className={`text-[11px] text-on-surface-variant border-t border-outline-variant/10 pt-2 cursor-pointer
-                        ${isSelected ? 'bg-primary/5 -mx-2 px-2 py-1' : 'hover:bg-surface-container-highest/50'}`}
-                    >
-                      <div className="flex justify-between mb-1 font-mono">
-                        <span>{d.id.slice(0, 6).toUpperCase()} (v{d.dimension})</span>
-                        <span className="text-on-surface">@ {d.x}, {d.y}</span>
-                      </div>
-                      <div className="grid grid-cols-2 gap-2 mt-2">
-                        <div className="space-y-1">
-                          <div className="flex justify-between text-[8px] uppercase font-mono">
-                            <span>Energy</span>
-                            <span>{Math.round(energyPct)}%</span>
-                          </div>
-                          <div className="h-1 bg-surface-container-highest w-full">
-                            <div className={`h-full ${energyPct > 60 ? c.bar : energyPct > 30 ? 'bg-warning' : 'bg-error'}`} style={{ width: `${energyPct}%` }} />
-                          </div>
+                return (
+                  <div
+                    key={d.id}
+                    onClick={() => selectDino(isSelected ? null : d.id)}
+                    className={`text-[11px] text-on-surface-variant border-t border-outline-variant/10 pt-2 cursor-pointer
+                      ${isSelected ? 'bg-primary/5 -mx-2 px-2 py-1' : 'hover:bg-surface-container-highest/50'}`}
+                  >
+                    <div className="flex justify-between mb-1 font-mono">
+                      <span>{d.id.slice(0, 6).toUpperCase()} (v{d.dimension})</span>
+                      <span className="text-on-surface">@ {d.x}, {d.y}</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 mt-2">
+                      <div className="space-y-1">
+                        <div className="flex justify-between text-[8px] uppercase font-mono">
+                          <span>Energy</span>
+                          <span>{Math.round(energyPct)}%</span>
                         </div>
-                        <div className="space-y-1">
-                          <div className="flex justify-between text-[8px] uppercase font-mono">
-                            <span>Age</span>
-                            <span>{d.age}/{d.max_lifespan}</span>
-                          </div>
-                          <div className="h-1 bg-surface-container-highest w-full">
-                            <div className={`h-full ${c.barAge}`} style={{ width: `${agePct}%` }} />
-                          </div>
+                        <div className="h-1 bg-surface-container-highest w-full">
+                          <div className={`h-full ${energyPct > 60 ? c.bar : energyPct > 30 ? 'bg-warning' : 'bg-error'}`} style={{ width: `${energyPct}%` }} />
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <div className="flex justify-between text-[8px] uppercase font-mono">
+                          <span>Age</span>
+                          <span>{d.age}/{d.max_lifespan}</span>
+                        </div>
+                        <div className="h-1 bg-surface-container-highest w-full">
+                          <div className={`h-full ${c.barAge}`} style={{ width: `${agePct}%` }} />
                         </div>
                       </div>
                     </div>
-                  );
-                })
-              )}
+                  </div>
+                );
+              })}
             </div>
           </div>
         );
       })}
 
-      {sorted.length === 0 && (
+      {/* Dead species — compact scoreboard */}
+      {dead.length > 0 && (
+        <div className="text-[11px] font-mono">
+          <div className="text-on-surface-variant/40 uppercase tracking-widest mb-2">Eliminated</div>
+          {dead.map(([speciesId, sp]) => {
+            const c = getColor(speciesId);
+            return (
+              <div key={speciesId} className="flex justify-between py-1 text-on-surface-variant/50">
+                <div className="flex items-center gap-2">
+                  <div className={`w-1.5 h-1.5 ${c.dot} opacity-40`} />
+                  <span>{sp.name}</span>
+                  <span className="text-[9px]">[{sp.diet === 'herbivore' ? 'H' : 'C'}]</span>
+                </div>
+                <span>{sp.score.toLocaleString()} pts</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {alive.length === 0 && dead.length === 0 && (
         <div className="text-on-surface-variant text-sm font-mono">Awaiting_bots...</div>
       )}
     </div>
