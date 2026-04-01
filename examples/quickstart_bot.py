@@ -211,8 +211,9 @@ def carnivore_action(api, game_id, state, dino, legal, rng):
 
 # --- Main loop ---
 
-def play_turn(api, game_id, state, diet, rng):
+def play_turn(api, game_id, state, diet, rng, verbose=False):
     my_dinos = [d for d in state["dinosaurs"] if d["is_mine"]]
+    enemies = find_enemy_dinos(state)
     actions = []
 
     for dino in my_dinos:
@@ -224,6 +225,21 @@ def play_turn(api, game_id, state, diet, rng):
             action = herbivore_action(api, game_id, state, dino, legal, rng)
         else:
             action = carnivore_action(api, game_id, state, dino, legal, rng)
+
+        if verbose:
+            food_type = "vegetation" if diet == "herbivore" else "carrion"
+            food_count = len([c for c in state["visible_cells"] if c["cell_type"] == food_type and c["energy"] > 50])
+            age_pct = int(dino["age"] / dino["max_lifespan"] * 100) if dino["max_lifespan"] > 0 else 0
+            e_pct = int(dino["energy"] / dino["max_energy"] * 100) if dino["max_energy"] > 0 else 0
+            act = action.get("action_type", "move")
+            pos = f"({dino['x']},{dino['y']})"
+            target = ""
+            if act == "move" and action.get("target_x") is not None:
+                target = f" -> ({action['target_x']},{action['target_y']})"
+            print(f"    dino {dino['id'][:6]} dim={dino['dimension']} {pos} "
+                  f"energy={e_pct}% age={age_pct}% "
+                  f"see: {food_count} food, {len(enemies)} enemies "
+                  f"=> {act}{target}")
 
         actions.append(action)
 
@@ -240,6 +256,8 @@ def main():
                         help="Diet type")
     parser.add_argument("--game", default=None,
                         help="Game ID (default: join persistent arena)")
+    parser.add_argument("--verbose", "-v", action="store_true",
+                        help="Log every decision each turn")
     args = parser.parse_args()
 
     if args.name is None:
@@ -291,8 +309,8 @@ def main():
             if turn > last_turn:
                 my_dinos = [d for d in state["dinosaurs"] if d["is_mine"]]
                 if my_dinos:
-                    play_turn(api, game_id, state, args.diet, rng)
-                    if turn % 5 == 0 or turn <= 3:
+                    play_turn(api, game_id, state, args.diet, rng, verbose=args.verbose)
+                    if args.verbose or turn % 5 == 0 or turn <= 3:
                         scores = api.get(f"/api/games/{game_id}/scores")
                         my_score = next((s for s in scores if s["name"] == args.name), None)
                         pts = my_score["score"] if my_score else 0
