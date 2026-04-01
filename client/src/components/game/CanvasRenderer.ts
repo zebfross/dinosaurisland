@@ -58,6 +58,26 @@ function pickTileColor(palette: string[], x: number, y: number): string {
 }
 
 
+// Animation state for a dino
+interface DinoAnim {
+  fromX: number;
+  fromY: number;
+  toX: number;
+  toY: number;
+  startTime: number;
+}
+
+// Combat/death flash effect
+interface FlashEffect {
+  x: number;
+  y: number;
+  startTime: number;
+  color: string; // species color
+}
+
+const MOVE_DURATION = 400; // ms for movement animation
+const FLASH_DURATION = 600; // ms for combat flash
+
 export class CanvasRenderer {
   private ctx: CanvasRenderingContext2D;
   private cameraX = 0;
@@ -68,6 +88,12 @@ export class CanvasRenderer {
   private dragStartY = 0;
   private dragCamStartX = 0;
   private dragCamStartY = 0;
+
+  // Animation tracking
+  private dinoAnims = new Map<string, DinoAnim>();
+  private prevDinoPositions = new Map<string, { x: number; y: number }>();
+  private prevDinoIds = new Set<string>();
+  private flashEffects: FlashEffect[] = [];
 
   onCellClick: ((x: number, y: number) => void) | null = null;
 
@@ -180,10 +206,95 @@ export class CanvasRenderer {
       ctx.stroke();
     }
 
-    // --- Draw dinos ---
+    // --- Update animations ---
+    const now = performance.now();
+    const currentIds = new Set(state.dinosaurs.map(d => d.id));
+
+    // Detect new positions and start movement animations
     for (const dino of state.dinosaurs) {
-      const sx = dino.x * ts - this.cameraX;
-      const sy = dino.y * ts - this.cameraY;
+      const prev = this.prevDinoPositions.get(dino.id);
+      if (prev && (prev.x !== dino.x || prev.y !== dino.y)) {
+        // Position changed — start animation
+        this.dinoAnims.set(dino.id, {
+          fromX: prev.x, fromY: prev.y,
+          toX: dino.x, toY: dino.y,
+          startTime: now,
+        });
+      }
+      this.prevDinoPositions.set(dino.id, { x: dino.x, y: dino.y });
+    }
+
+    // Detect deaths — create flash effects
+    for (const prevId of this.prevDinoIds) {
+      if (!currentIds.has(prevId)) {
+        const prevPos = this.prevDinoPositions.get(prevId);
+        if (prevPos) {
+          // Check if another dino is at this position (combat kill)
+          const killer = state.dinosaurs.find(d => d.x === prevPos.x && d.y === prevPos.y);
+          this.flashEffects.push({
+            x: prevPos.x, y: prevPos.y,
+            startTime: now,
+            color: killer ? getSpeciesColor(killer.species_id) : '#ff716c',
+          });
+          this.prevDinoPositions.delete(prevId);
+        }
+      }
+    }
+    this.prevDinoIds = currentIds;
+
+    // Clean up finished animations
+    for (const [id, anim] of this.dinoAnims) {
+      if (now - anim.startTime > MOVE_DURATION) {
+        this.dinoAnims.delete(id);
+      }
+    }
+    this.flashEffects = this.flashEffects.filter(f => now - f.startTime < FLASH_DURATION);
+
+    // --- Draw flash effects (behind dinos) ---
+    for (const flash of this.flashEffects) {
+      const progress = (now - flash.startTime) / FLASH_DURATION;
+      const sx = flash.x * ts - this.cameraX;
+      const sy = flash.y * ts - this.cameraY;
+      if (sx + ts < 0 || sx > w || sy + ts < 0 || sy > h) continue;
+
+      const alpha = 1 - progress;
+      const radius = ts * (0.5 + progress * 1.5);
+
+      // Expanding ring
+      ctx.strokeStyle = flash.color;
+      ctx.globalAlpha = alpha * 0.8;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(sx + ts / 2, sy + ts / 2, radius, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // Inner flash
+      ctx.fillStyle = flash.color;
+      ctx.globalAlpha = alpha * 0.3;
+      ctx.beginPath();
+      ctx.arc(sx + ts / 2, sy + ts / 2, radius * 0.5, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.globalAlpha = 1;
+    }
+
+    // --- Draw dinos (with interpolated positions) ---
+    for (const dino of state.dinosaurs) {
+      let drawX = dino.x;
+      let drawY = dino.y;
+
+      // Interpolate if animating
+      const anim = this.dinoAnims.get(dino.id);
+      if (anim) {
+        const t = Math.min(1, (now - anim.startTime) / MOVE_DURATION);
+        // Ease out cubic
+        const ease = 1 - Math.pow(1 - t, 3);
+        drawX = anim.fromX + (anim.toX - anim.fromX) * ease;
+        drawY = anim.fromY + (anim.toY - anim.fromY) * ease;
+      }
+
+      const sx = drawX * ts - this.cameraX;
+      const sy = drawY * ts - this.cameraY;
       if (sx + ts < 0 || sx > w || sy + ts < 0 || sy > h) continue;
 
       this._drawDino(ctx, dino, sx, sy, ts, state.selectedDinoId);
