@@ -324,16 +324,23 @@ def main():
 
             if turn > last_turn:
                 my_dinos = [d for d in state["dinosaurs"] if d["is_mine"]]
+                prev_count = getattr(main, '_prev_dino_count', -1)
+
                 if my_dinos:
                     play_turn(api, game_id, state, args.diet, rng, verbose=args.verbose)
-                    if args.verbose or turn % 5 == 0 or turn <= 3:
+                    if args.verbose or turn % 5 == 0 or turn <= 3 or len(my_dinos) != prev_count:
                         scores = api.get(f"/api/games/{game_id}/scores")
                         my_score = next((s for s in scores if s["name"] == args.name), None)
                         pts = my_score["score"] if my_score else 0
                         print(f"  Turn {turn}: {len(my_dinos)} dinos, {pts} pts")
-                else:
-                    if turn % 20 == 0:
-                        print(f"  Turn {turn}: All dinos dead. Waiting...")
+                elif prev_count != 0:
+                    # Just went extinct — print immediately
+                    scores = api.get(f"/api/games/{game_id}/scores")
+                    my_score = next((s for s in scores if s["name"] == args.name), None)
+                    pts = my_score["score"] if my_score else 0
+                    print(f"  Turn {turn}: EXTINCT ({pts} pts). Waiting for new game or respawn...")
+
+                main._prev_dino_count = len(my_dinos)
                 last_turn = turn
 
             time.sleep(1)
