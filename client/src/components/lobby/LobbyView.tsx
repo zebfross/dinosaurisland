@@ -167,6 +167,7 @@ export function LobbyView() {
 function HowToConnectModal({ onClose, games }: { onClose: () => void; games: GameSummary[] }) {
   const persistent = games.find(g => g.persistent);
   const serverUrl = window.location.origin + (import.meta.env.BASE_URL || '/').replace(/\/$/, '');
+  const downloadUrl = 'https://raw.githubusercontent.com/zebfross/dinosaurisland/main/examples/quickstart_bot.py';
 
   return (
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={onClose}>
@@ -184,7 +185,7 @@ function HowToConnectModal({ onClose, games }: { onClose: () => void; games: Gam
             </h3>
             <div className="bg-surface-container-highest p-4 font-mono text-sm text-primary border border-outline-variant/20 overflow-x-auto">
               <div className="text-on-surface-variant text-[10px] uppercase mb-2"># Download and run</div>
-              curl -sO {serverUrl}/api/quickstart && python3 quickstart_bot.py
+              curl -sLO {downloadUrl} && python3 quickstart_bot.py --server {serverUrl}
             </div>
           </div>
 

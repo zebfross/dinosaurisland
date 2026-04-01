@@ -122,12 +122,16 @@ def main():
         game_id = args.game
     else:
         games = api.get("/api/games")
+        # Prefer persistent arena, fall back to any joinable game
         persistent = [g for g in games if g.get("persistent")]
-        if persistent:
-            game_id = persistent[0]["game_id"]
-            print(f"Found persistent arena (turn {persistent[0]['turn']})")
+        active = [g for g in games if g["phase"] in ("waiting", "active")]
+        pick = persistent[0] if persistent else (active[0] if active else None)
+        if pick:
+            game_id = pick["game_id"]
+            label = "persistent arena" if pick.get("persistent") else f"game {game_id[:8]}"
+            print(f"Found {label} (turn {pick['turn']})")
         else:
-            print("No persistent game found. Specify --game ID")
+            print("No games found. Create one at the web UI first.")
             return
 
     # Join
