@@ -26,6 +26,7 @@ from server.api.schemas import (
     CellResponse,
     DinoResponse,
     EggResponse,
+    GameEvent,
     GameStateResponse,
     GameSummary,
     ReplayFrame,
@@ -275,11 +276,12 @@ class GameManager:
             if session.persistent and session.state.phase == GamePhase.FINISHED:
                 session.state.phase = GamePhase.ACTIVE
 
-            # Build scores
+            # Build scores and events
             scores = self._build_scores(session)
+            events = self._build_events(session, result)
 
             # Record replay frame (cap at last 500 to avoid unbounded memory)
-            session.replay_frames.append(self._build_replay_frame(session, result))
+            session.replay_frames.append(self._build_replay_frame(session, result, events))
             if len(session.replay_frames) > 500:
                 session.replay_frames = session.replay_frames[-500:]
 
@@ -291,6 +293,7 @@ class GameManager:
                     combats=len(result.combats),
                     deaths=len(result.deaths),
                     hatches=len(result.hatches),
+                    events=events,
                     scores=scores,
                 ).model_dump(),
             )
@@ -562,6 +565,47 @@ class GameManager:
                 except Exception:
                     pass
 
+    def _build_events(self, session: GameSession, result) -> list[GameEvent]:
+        """Build human-readable events from a TurnResult."""
+        if result is None:
+            return []
+        events: list[GameEvent] = []
+
+        # Hatches
+        for dino_id in result.hatches:
+            sp = session.state.get_species_for_dino(dino_id)
+            name = sp.name if sp else "Unknown"
+            events.append(GameEvent(kind="hatch", species_name=name,
+                                    detail=f"{name} egg hatched"))
+
+        # Combats
+        for c in result.combats:
+            winner_sp = session.state.get_species_for_dino(c.winner_id)
+            loser_sp = session.state.get_species_for_dino(c.loser_id)
+            w_name = winner_sp.name if winner_sp else "Unknown"
+            l_name = loser_sp.name if loser_sp else "Unknown"
+            events.append(GameEvent(kind="combat", species_name=w_name,
+                                    detail=f"{w_name} killed {l_name} (+{int(c.energy_transferred)} energy)"))
+
+        # Deaths (non-combat — old age, starvation)
+        combat_deaths = {c.loser_id for c in result.combats}
+        for dino_id in result.deaths:
+            if dino_id in combat_deaths:
+                continue  # already covered by combat event
+            sp = session.state.get_species_for_dino(dino_id)
+            if not sp:
+                # Dino might be dead already, search all species
+                for s in session.state.species.values():
+                    for d in s.dinosaurs:
+                        if d.id == dino_id:
+                            sp = s
+                            break
+            name = sp.name if sp else "Unknown"
+            events.append(GameEvent(kind="death", species_name=name,
+                                    detail=f"{name} dino died"))
+
+        return events
+
     def _build_scores(self, session: GameSession) -> list[SpeciesScore]:
         return [
             SpeciesScore(
@@ -574,7 +618,7 @@ class GameManager:
             for sp in session.state.species.values()
         ]
 
-    def _build_replay_frame(self, session: GameSession, result) -> ReplayFrame:
+    def _build_replay_frame(self, session: GameSession, result, events: list[GameEvent] | None = None) -> ReplayFrame:
         """Snapshot the current state as a replay frame."""
         dinos = []
         for sp in session.state.species.values():
@@ -603,6 +647,7 @@ class GameManager:
             combats=len(result.combats) if result else 0,
             deaths=len(result.deaths) if result else 0,
             hatches=len(result.hatches) if result else 0,
+            events=events or [],
         )
 
     def get_replay(self, game_id: str) -> ReplayResponse | None:

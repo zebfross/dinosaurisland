@@ -74,6 +74,12 @@ export interface GameStateResponse {
   scores: SpeciesScore[];
 }
 
+export interface GameEvent {
+  kind: string; // "hatch", "death", "combat"
+  species_name: string;
+  detail: string;
+}
+
 // Replay
 export interface ReplayFrame {
   turn: number;
@@ -84,6 +90,7 @@ export interface ReplayFrame {
   combats: number;
   deaths: number;
   hatches: number;
+  events: GameEvent[];
 }
 
 export interface ReplayResponse {
@@ -130,6 +137,7 @@ export interface WsTurnResult {
   combats: number;
   deaths: number;
   hatches: number;
+  events: GameEvent[];
   scores: SpeciesScore[];
 }
 

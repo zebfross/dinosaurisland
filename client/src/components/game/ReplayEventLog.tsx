@@ -15,17 +15,22 @@ export function ReplayEventLog({ frames, currentFrame }: ReplayEventLogProps) {
     }
   }, [currentFrame]);
 
+  const kindColors: Record<string, string> = {
+    hatch: 'text-success',
+    combat: 'text-warning',
+    death: 'text-error',
+  };
+
   const events: { turn: number; text: string; cls: string }[] = [];
   for (let i = 0; i <= currentFrame && i < frames.length; i++) {
     const f = frames[i];
-    const hasMajorEvent = f.hatches > 0 || f.combats > 0 || f.deaths > 0;
 
-    if (f.hatches > 0) events.push({ turn: f.turn, text: `${f.hatches} egg(s) hatched`, cls: 'text-success' });
-    if (f.combats > 0) events.push({ turn: f.turn, text: `${f.combats} combat(s)`, cls: 'text-warning' });
-    if (f.deaths > 0) events.push({ turn: f.turn, text: `${f.deaths} death(s)`, cls: 'text-error' });
+    for (const ev of (f.events || [])) {
+      events.push({ turn: f.turn, text: ev.detail, cls: kindColors[ev.kind] || 'text-on-surface-variant' });
+    }
 
-    // Show scoreboard on major events or every 25 turns
-    if (hasMajorEvent || f.turn % 25 === 0) {
+    // Scoreboard checkpoint every 25 turns
+    if (f.turn % 25 === 0) {
       const scoreboard = f.scores
         .filter(s => s.score > 0)
         .sort((a, b) => b.score - a.score)

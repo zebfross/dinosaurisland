@@ -147,6 +147,7 @@ class ReplayFrame(BaseModel):
     combats: int = 0
     deaths: int = 0
     hatches: int = 0
+    events: list[GameEvent] = []
 
 
 class ReplayResponse(BaseModel):
@@ -171,12 +172,19 @@ class WsStateUpdate(BaseModel):
     state: GameStateResponse
 
 
+class GameEvent(BaseModel):
+    kind: str  # "hatch", "death", "combat"
+    species_name: str
+    detail: str  # human-readable description
+
+
 class WsTurnResult(BaseModel):
     type: str = "turn_result"
     turn: int
     combats: int
     deaths: int
     hatches: int
+    events: list[GameEvent] = []
     scores: list[SpeciesScore]
 
 
