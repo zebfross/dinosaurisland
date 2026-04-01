@@ -92,14 +92,16 @@ def herbivore_action(api, game_id, state, dino, legal, rng):
         flee = max(moves, key=lambda m: dist(m["target_x"], m["target_y"], threat["x"], threat["y"]))
         return flee
 
-    # Lay egg if we have plenty of energy and few dinos
+    # Lay egg — more urgent when aging
     my_dinos = [d for d in state["dinosaurs"] if d["is_mine"]]
-    if energy_pct > 0.75 and len(my_dinos) < 4:
+    age_pct = dino["age"] / dino["max_lifespan"] if dino["max_lifespan"] > 0 else 0
+    egg_threshold = 0.8 if age_pct < 0.5 else 0.5
+    if energy_pct > egg_threshold and len(my_dinos) < 4:
         if any(a["action_type"] == "lay_egg" for a in legal):
             return {"dino_id": dino["id"], "action_type": "lay_egg"}
 
-    # Grow if we have energy and are small
-    if energy_pct > 0.65 and dino["dimension"] < 3:
+    # Grow if young enough to benefit
+    if energy_pct > 0.65 and dino["dimension"] < 3 and age_pct < 0.6:
         if any(a["action_type"] == "grow" for a in legal):
             return {"dino_id": dino["id"], "action_type": "grow"}
 
@@ -170,15 +172,18 @@ def carnivore_action(api, game_id, state, dino, legal, rng):
         if move:
             return move
 
-    # Grow if we have decent energy
-    if energy_pct > 0.6 and dino["dimension"] < 4:
-        if any(a["action_type"] == "grow" for a in legal):
-            return {"dino_id": dino["id"], "action_type": "grow"}
-
-    # Lay egg if strong and few dinos
-    if energy_pct > 0.8 and len(my_dinos) < 3:
+    # Lay egg FIRST — survival of the species is priority
+    # More urgent as dino ages (might die before getting another chance)
+    age_pct = dino["age"] / dino["max_lifespan"] if dino["max_lifespan"] > 0 else 0
+    egg_threshold = 0.85 if age_pct < 0.5 else 0.5  # desperate when old
+    if energy_pct > egg_threshold and len(my_dinos) < 4:
         if any(a["action_type"] == "lay_egg" for a in legal):
             return {"dino_id": dino["id"], "action_type": "lay_egg"}
+
+    # Grow — but only if young enough to benefit
+    if energy_pct > 0.6 and dino["dimension"] < 3 and age_pct < 0.6:
+        if any(a["action_type"] == "grow" for a in legal):
+            return {"dino_id": dino["id"], "action_type": "grow"}
 
     # Move toward carrion
     carrion = find_food_cells(state, "carrion")
