@@ -105,8 +105,13 @@ def herbivore_action(api, game_id, state, dino, legal, rng):
         if any(a["action_type"] == "grow" for a in legal):
             return {"dino_id": dino["id"], "action_type": "grow"}
 
-    # If sitting on good food, stay and eat
+    # If sitting on food, stay and eat
     if on_food and energy_pct < 0.95:
+        return {"dino_id": dino["id"], "action_type": "rest"}
+
+    # CRITICAL: don't move if energy is too low — movement can kill
+    # (1 step = 20 energy, 2 steps = 40 energy)
+    if energy_pct < 0.1:
         return {"dino_id": dino["id"], "action_type": "rest"}
 
     # Move toward richest visible vegetation
@@ -184,6 +189,10 @@ def carnivore_action(api, game_id, state, dino, legal, rng):
     if energy_pct > 0.6 and dino["dimension"] < 3 and age_pct < 0.6:
         if any(a["action_type"] == "grow" for a in legal):
             return {"dino_id": dino["id"], "action_type": "grow"}
+
+    # CRITICAL: rest if energy is dangerously low
+    if energy_pct < 0.05:
+        return {"dino_id": dino["id"], "action_type": "rest"}
 
     # Move toward carrion
     carrion = find_food_cells(state, "carrion")
