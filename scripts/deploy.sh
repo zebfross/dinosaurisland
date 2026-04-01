@@ -32,6 +32,7 @@ rsync -avz --delete \
   --exclude='.env.local' \
   --exclude='stderr.log' \
   --exclude='tmp' \
+  --exclude='.htaccess' \
   ./ ${REMOTE}:${REMOTE_PATH}/
 
 echo ""
