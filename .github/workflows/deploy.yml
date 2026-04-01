@@ -42,14 +42,21 @@ jobs:
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
           echo "${{ secrets.SSH_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+          cat >> ~/.ssh/config << EOF
+          Host deploy-target
+            HostName ${{ secrets.SSH_HOST }}
+            User ${{ secrets.SSH_USER }}
+            Port ${{ secrets.SSH_PORT }}
+            IdentityFile ~/.ssh/id_rsa
+            StrictHostKeyChecking no
+          EOF
+          chmod 600 ~/.ssh/config
 
       - name: Deploy to server
-        env:
-          REMOTE_PATH: /home/odionfro/inceptify.com/dinosaurisland
-          REMOTE_HOST: ${{ secrets.SSH_HOST }}
-          REMOTE_USER: ${{ secrets.SSH_USER }}
-          VENV_ACTIVATE: source /home/odionfro/virtualenv/inceptify.com/dinosaurisland/3.11/bin/activate
         run: |
+          REMOTE_PATH=/home/odionfro/inceptify.com/dinosaurisland
+          VENV="source /home/odionfro/virtualenv/inceptify.com/dinosaurisland/3.11/bin/activate"
+
           rsync -avz --delete \
             --exclude='.venv' \
             --exclude='node_modules' \
@@ -60,14 +67,11 @@ jobs:
             --exclude='.env' \
             --exclude='.env.local' \
             --exclude='stderr.log' \
-            -e "ssh -o StrictHostKeyChecking=no -p ${{ secrets.SSH_PORT }}" \
-            ./ ${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_PATH}/
+            -e "ssh" \
+            ./ deploy-target:${REMOTE_PATH}/
 
-          ssh -o StrictHostKeyChecking=no -p ${{ secrets.SSH_PORT }} ${REMOTE_USER}@${REMOTE_HOST} \
-            "${VENV_ACTIVATE} && cd ${REMOTE_PATH} && pip install -r requirements.txt -q"
-
-          ssh -o StrictHostKeyChecking=no -p ${{ secrets.SSH_PORT }} ${REMOTE_USER}@${REMOTE_HOST} \
-            "touch ${REMOTE_PATH}/tmp/restart.txt"
+          ssh deploy-target "${VENV} && cd ${REMOTE_PATH} && pip install -r requirements.txt -q"
+          ssh deploy-target "touch ${REMOTE_PATH}/tmp/restart.txt"
 
       - name: Verify deployment
         run: |
