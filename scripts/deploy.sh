@@ -31,6 +31,7 @@ rsync -avz --delete \
   --exclude='.env' \
   --exclude='.env.local' \
   --exclude='stderr.log' \
+  --exclude='tmp' \
   ./ ${REMOTE}:${REMOTE_PATH}/
 
 echo ""
@@ -39,7 +40,7 @@ ssh ${REMOTE} "${VENV_ACTIVATE} && cd ${REMOTE_PATH} && pip install -r requireme
 
 echo ""
 echo "=== Restarting app ==="
-ssh ${REMOTE} "touch ${REMOTE_PATH}/tmp/restart.txt"
+ssh ${REMOTE} "mkdir -p ${REMOTE_PATH}/tmp && touch ${REMOTE_PATH}/tmp/restart.txt"
 
 echo ""
 echo "=== Verifying ==="
