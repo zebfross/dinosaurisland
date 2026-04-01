@@ -208,6 +208,15 @@ class GameManager:
         if not session:
             return
 
+        # Skip if no living dinos (persistent games idle until a bot joins)
+        has_dinos = any(sp.dino_count > 0 for sp in session.state.species.values())
+        if not has_dinos:
+            await asyncio.sleep(session.turn_timeout)
+            # Check again — a bot may have joined while we waited
+            if session.state.phase == GamePhase.ACTIVE:
+                await self.start_turn_timer(game_id)
+            return
+
         # Broadcast turn start
         await self._broadcast(
             session,
