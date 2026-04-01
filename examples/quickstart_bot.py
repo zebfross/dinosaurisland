@@ -231,14 +231,19 @@ def play_turn(api, game_id, state, diet, rng, verbose=False):
             food_count = len([c for c in state["visible_cells"] if c["cell_type"] == food_type and c["energy"] > 50])
             age_pct = int(dino["age"] / dino["max_lifespan"] * 100) if dino["max_lifespan"] > 0 else 0
             e_pct = int(dino["energy"] / dino["max_energy"] * 100) if dino["max_energy"] > 0 else 0
+            threats = len([e for e in enemies if e["diet"] == "carnivore"]) if diet == "herbivore" else len(enemies)
+            prey = len([e for e in enemies if e["diet"] == "herbivore"]) if diet == "carnivore" else 0
             act = action.get("action_type", "move")
             pos = f"({dino['x']},{dino['y']})"
             target = ""
             if act == "move" and action.get("target_x") is not None:
                 target = f" -> ({action['target_x']},{action['target_y']})"
+            see_parts = [f"{food_count} food"]
+            if threats: see_parts.append(f"{threats} threats")
+            if prey: see_parts.append(f"{prey} prey")
             print(f"    dino {dino['id'][:6]} dim={dino['dimension']} {pos} "
                   f"energy={e_pct}% age={age_pct}% "
-                  f"see: {food_count} food, {len(enemies)} enemies "
+                  f"see: {', '.join(see_parts)} "
                   f"=> {act}{target}")
 
         actions.append(action)
