@@ -325,7 +325,7 @@ class GameEngine:
                 if action.action_type == ActionType.MOVE:
                     self._execute_move(state, species, dino, action, combats_to_resolve, result)
                 elif action.action_type == ActionType.GROW:
-                    self._execute_grow(dino)
+                    self._execute_grow(dino, state, result)
                 elif action.action_type == ActionType.LAY_EGG:
                     self._execute_lay_egg(state, species, dino)
                 # REST: do nothing
@@ -397,12 +397,17 @@ class GameEngine:
         dino.x = tx
         dino.y = ty
 
-    def _execute_grow(self, dino: Dinosaur) -> None:
+    def _execute_grow(self, dino: Dinosaur, state: GameState | None = None, result: TurnResult | None = None) -> None:
         new_dim = dino.dimension + 1
         new_max = new_dim * ENERGY_PER_DIMENSION
         cost = new_max * GROW_ENERGY_FRACTION
         if dino.energy < cost:
-            dino.alive = False  # dies trying to grow
+            dino.alive = False
+            if state:
+                self._spawn_carrion(state, dino.x, dino.y, dino.dimension * 200)
+            if result:
+                result.deaths.append(dino.id)
+                result.death_causes[dino.id] = "failed growth"
             return
         dino.energy -= cost
         dino.dimension = new_dim
