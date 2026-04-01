@@ -107,7 +107,7 @@ class TestLayEggValidation:
 
     def test_not_enough_energy(self):
         state, sp, d = _setup_game()
-        d.energy = 1000
+        d.energy = 500
         action = Action(dino_id=d.id, action_type=ActionType.LAY_EGG)
         with pytest.raises(InvalidActionError, match="Not enough energy"):
             validate_action(state, sp, d, action)

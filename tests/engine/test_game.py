@@ -136,7 +136,7 @@ class TestActions:
         )
         result1 = engine.process_turn(state)
         assert len(sp1.eggs) == 1
-        assert dino.energy == 2000 - 1500
+        assert dino.energy == 2000 - 800
 
         # Next turn, egg hatches
         result2 = engine.process_turn(state)

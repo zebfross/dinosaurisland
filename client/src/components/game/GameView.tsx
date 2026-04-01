@@ -66,7 +66,6 @@ export function GameView() {
         if (state.turn !== lastTurn) {
           lastTurn = state.turn;
           applyState(state);
-          if (state.turn > 0) addEvent(`Turn ${state.turn}`);
         }
         if (state.phase === 'finished') {
           if (pollRef.current) clearInterval(pollRef.current);
