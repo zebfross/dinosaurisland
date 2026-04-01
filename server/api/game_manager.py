@@ -140,16 +140,14 @@ class GameManager:
         return None
 
     def ensure_persistent_game(self) -> GameSession:
-        """Create the persistent game if it doesn't exist. Auto-start it."""
+        """Create the persistent game if it doesn't exist. Starts when first bot joins."""
         existing = self.get_persistent_game()
         if existing:
             return existing
         session = self.create_game(
             width=40, height=40, turn_timeout=10, persistent=True,
         )
-        # Start immediately — bots can join anytime
-        session.engine.start_game(session.state)
-        session.replay_frames.append(self._build_replay_frame(session, None))
+        # Don't start yet — starts automatically when first bot joins
         return session
 
     def join_game(
@@ -174,6 +172,12 @@ class GameManager:
         )
         session.species_to_player[species.id] = player_id
         session.player_to_species[player_id] = species.id
+
+        # Auto-start persistent games on first join
+        if session.persistent and session.state.phase == GamePhase.WAITING:
+            session.engine.start_game(session.state)
+            session.replay_frames.append(self._build_replay_frame(session, None))
+
         return species
 
     def start_game(self, game_id: str) -> None:

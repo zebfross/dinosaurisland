@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from server.api.deps import get_current_player, get_manager
 from server.api.game_manager import GameManager, PlayerInfo
+from server.engine.models import GamePhase
 from server.api.schemas import (
     CreateGameRequest,
     GameSummary,
@@ -57,7 +58,7 @@ def get_game(
 
 
 @router.post("/{game_id}/join", response_model=JoinGameResponse)
-def join_game(
+async def join_game(
     game_id: str,
     req: JoinGameRequest,
     player: PlayerInfo = Depends(get_current_player),
@@ -69,6 +70,13 @@ def join_game(
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+    # Start turn timer for persistent games that just activated
+    session = manager.games.get(game_id)
+    if session and session.persistent and session.state.phase == GamePhase.ACTIVE:
+        if not session._timer_task or session._timer_task.done():
+            await manager.start_turn_timer(game_id)
+
     return JoinGameResponse(species_id=species.id, game_id=game_id)
 
 

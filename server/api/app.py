@@ -27,11 +27,9 @@ def create_app(testing: bool = False) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         app.state.manager = manager
-        # Auto-create persistent game
+        # Auto-create persistent game (starts when first bot joins)
         if not testing:
-            persistent = manager.ensure_persistent_game()
-            # Start turn timer for persistent game
-            await manager.start_turn_timer(persistent.game_id)
+            manager.ensure_persistent_game()
         yield
 
     app = FastAPI(
