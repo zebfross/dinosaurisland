@@ -3,7 +3,7 @@
   "private": true,
   "scripts": {
     "dev": "concurrently -n server,client -c cyan,green \"npm run dev:server\" \"npm run dev:client\"",
-    "dev:server": "cd . && .venv/bin/python -m server serve",
+    "dev:server": "pkill -9 -f 'python.*server serve' 2>/dev/null; sleep 1; .venv/bin/python -m server serve",
     "dev:client": "sleep 2 && cd client && npx vite --open",
     "match": ".venv/bin/python examples/run_match.py",
     "cli": ".venv/bin/python -m server cli",
