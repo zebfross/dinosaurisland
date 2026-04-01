@@ -230,13 +230,15 @@ def main():
     parser = argparse.ArgumentParser(description="Dinosaur Island Quickstart Bot")
     parser.add_argument("--server", default="https://inceptify.com/dinosaurisland",
                         help="Server URL")
-    parser.add_argument("--name", default=f"Bot_{random.randint(1000,9999)}",
-                        help="Species name")
+    parser.add_argument("--name", default=None, help="Species name (default: diet + random number)")
     parser.add_argument("--diet", default="herbivore", choices=["herbivore", "carnivore"],
                         help="Diet type")
     parser.add_argument("--game", default=None,
                         help="Game ID (default: join persistent arena)")
     args = parser.parse_args()
+
+    if args.name is None:
+        args.name = f"{args.diet}_{random.randint(1000,9999)}"
 
     api = API(args.server)
     rng = random.Random()
